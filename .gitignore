@@ -12,3 +12,5 @@ __pycache__/
 .venv/
 *.pyc
 .DS_Store
+
+apps/api/data/
