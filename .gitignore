@@ -14,3 +14,7 @@ __pycache__/
 .DS_Store
 
 apps/api/data/
+
+apps/api/python/.venv*/
+apps/api/python/__pycache__/
+**/__pycache__/

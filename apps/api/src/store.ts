@@ -1,12 +1,20 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { StoredFields } from "./pipeline/formview.ts";
 
 export type FormStatus = "draft" | "approved" | "editing";
-export interface Form { formId: string; revision: number; status: FormStatus; }
+export interface Form {
+  formId: string; revision: number; status: FormStatus;
+  // Present only for forms created by the voice pipeline (legacy spike forms have none of these).
+  number?: number; techId?: string; fields?: StoredFields; captureDate?: string; partial?: boolean; mock?: boolean;
+}
+export interface PatchTarget { formId: string; revision: number; expiresAt: number }
 interface State {
   forms: Record<string, Form>;
   sent: Record<string, { formId: string; revision: number }>; // outbound wamid -> form/revision
   processed: Record<string, number>; // inbound wamid -> epoch ms
+  counter?: number; // short form number
+  patch?: Record<string, PatchTarget>; // technician wa_id -> form waiting for a correction message (PATCH_TARGET)
 }
 
 // Spike-grade JSON file store. Re-reads on every operation so the server and
@@ -55,6 +63,31 @@ export class Store {
   recordSent(wamid: string, formId: string, revision: number): void {
     const s = this.load();
     s.sent[wamid] = { formId, revision };
+    this.save(s);
+  }
+  nextNumber(): number {
+    const s = this.load();
+    s.counter = (s.counter ?? 1000) + 1;
+    this.save(s);
+    return s.counter;
+  }
+  /** Stores/overwrites a pipeline draft (no transcript or quote is ever part of a Form). */
+  saveDraft(f: Form): void {
+    const s = this.load();
+    s.forms[f.formId] = f;
+    this.save(s);
+  }
+  setPatchTarget(techId: string, t: PatchTarget): void {
+    const s = this.load();
+    (s.patch ??= {})[techId] = t;
+    this.save(s);
+  }
+  getPatchTarget(techId: string): PatchTarget | undefined {
+    return this.load().patch?.[techId];
+  }
+  clearPatchTarget(techId: string): void {
+    const s = this.load();
+    if (s.patch) delete s.patch[techId];
     this.save(s);
   }
   getSent(wamid: string) {

@@ -6,7 +6,12 @@ import { handleEvent, type Deps } from "./handlers.ts";
 import { errMsg, log, registerSecrets } from "./logger.ts";
 import { verifySignature } from "./signature.ts";
 import { Store } from "./store.ts";
-import { GraphWhatsApp } from "./whatsapp.ts";
+import { GraphWhatsApp, sweepTempAudio } from "./whatsapp.ts";
+import { PythonControls } from "./pipeline/controls.ts";
+import { StructuredExtractor } from "./pipeline/extractor.ts";
+import { AnthropicLlm, evaluateLiveGate } from "./pipeline/llm.ts";
+import { VoicePipeline } from "./pipeline/pipeline.ts";
+import { PythonSttWorker } from "./pipeline/stt.ts";
 
 const MAX_BODY = 1024 * 1024;
 
@@ -33,6 +38,7 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
 export function createApp(deps: Deps, done?: (p: Promise<unknown>) => void) {
   const { cfg } = deps;
   return createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    const receivedAtMs = Date.now();
     const url = new URL(req.url ?? "/", "http://localhost");
     const end = (code: number, body = "") => { res.statusCode = code; res.end(body); };
     try {
@@ -58,7 +64,7 @@ export function createApp(deps: Deps, done?: (p: Promise<unknown>) => void) {
         try { events = parseWebhook(JSON.parse(raw.toString("utf8"))); }
         catch { log("warn", "payload_unparseable"); return end(400); }
         end(200); // ack fast so Meta does not retry; process afterwards
-        const work = Promise.all(events.map((ev) => handleEvent(ev, deps)));
+        const work = Promise.all(events.map((ev) => handleEvent(ev, deps, receivedAtMs)));
         done?.(work);
         return;
       }
@@ -70,9 +76,26 @@ export function createApp(deps: Deps, done?: (p: Promise<unknown>) => void) {
   });
 }
 
-export function buildDeps(cfg: Config): Deps {
-  registerSecrets(cfg.accessToken, cfg.appSecret, cfg.verifyToken);
-  return { cfg, store: new Store(cfg.dataDir), wa: new GraphWhatsApp(cfg) };
+export function buildDeps(cfg: Config, env: NodeJS.ProcessEnv = process.env): Deps {
+  registerSecrets(cfg.accessToken, cfg.appSecret, cfg.verifyToken, env.ANTHROPIC_API_KEY ?? "");
+  const store = new Store(cfg.dataDir);
+  const wa = new GraphWhatsApp(cfg);
+  const p = cfg.pipeline;
+  if (!p) return { cfg, store, wa };
+  const stt = new PythonSttWorker({
+    pythonExe: p.pythonExe, workerScript: p.sttWorkerScript, modelDir: p.sttModelDir, maxQueue: p.sttMaxQueue, jobTimeoutMs: p.sttJobTimeoutMs,
+    startupTimeoutMs: p.sttStartupTimeoutMs, maxAudioSeconds: p.sttMaxAudioSeconds, onEvent: (e, f) => log("info", e, f),
+  });
+  let extractor: StructuredExtractor | null = null;
+  if (p.extractorMode === "real") {
+    const gate = evaluateLiveGate(env);
+    if (!gate.live) throw new Error(`LIVE_GATE_CLOSED: missing ${gate.missing.join("; ")}`); // refuse to start; never fall back silently
+    extractor = new StructuredExtractor(AnthropicLlm.create(env, cfg.dataDir), new PythonControls(p.pythonExe, p.controlsScript));
+  } // else: transcribe-only dry run, no Claude calls
+  const swept = sweepTempAudio(cfg.dataDir); // orphaned audio from a crashed run never survives a restart
+  log("info", "pipeline_configured", { extractor: p.extractorMode, live_calls_enabled: extractor !== null, swept_temp_files: swept });
+  void stt.warmUp().catch(() => log("error", "stt_warmup_failed"));
+  return { cfg, store, wa, pipeline: new VoicePipeline({ cfg, store, wa, stt, extractor }) };
 }
 
 if (import.meta.main) {

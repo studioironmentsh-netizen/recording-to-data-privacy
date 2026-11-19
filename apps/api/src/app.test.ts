@@ -22,6 +22,7 @@ class FakeWA implements WhatsApp {
   media = new Map<string, Buffer>();
   async sendText(_to: string, text: string) { this.texts.push(text); }
   async sendForm() { return "wamid.FAKE"; }
+  async sendFormMessage() { return "wamid.FAKE"; }
   async fetchMedia(id: string) {
     const b = this.media.get(id);
     if (!b) throw new Error(`media lookup failed: http 401 Bearer ${TOKEN}`);

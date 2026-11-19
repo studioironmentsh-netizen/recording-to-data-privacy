@@ -1,0 +1,132 @@
+{
+ "clarification_requests": [],
+ "contract_version": "STAGEB-EXTRACTION-1.0.0",
+ "extracted_fields": {
+  "customer_address": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "customer_external_number": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "customer_name": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "customer_phone": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "next_visit": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "parts_price": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "parts_vat_basis": {
+   "evidence_state": "UNKNOWN",
+   "needs_clarification": false,
+   "value": "UNKNOWN"
+  },
+  "spare_parts": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "visit_date_statement": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "visit_price": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "visit_vat_basis": {
+   "evidence_state": "UNKNOWN",
+   "needs_clarification": false,
+   "value": "UNKNOWN"
+  },
+  "work_summary": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  }
+ },
+ "extraction_metadata": {
+  "extractor_version": "fx-1",
+  "input_id": "FX|x",
+  "input_sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+  "model_id": "fixture",
+  "model_version": "1",
+  "pipeline_type": "B_STT_TRANSCRIPT",
+  "prompt_sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+  "prompt_version": "none",
+  "provider_id": "fixture",
+  "provider_kind": "MOCK",
+  "timing_ms": 1,
+  "usage": null
+ },
+ "field_states": {
+  "customer_address": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "customer_external_number": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "customer_name": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "customer_phone": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "next_visit": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "parts_price": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "parts_vat_basis": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "spare_parts": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "visit_date_statement": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "visit_price": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "visit_vat_basis": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "work_summary": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  }
+ },
+ "template_version": "ac-pilot-srs46-0.1",
+ "unassigned_business_info": []
+}

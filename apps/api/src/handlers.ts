@@ -2,12 +2,14 @@ import type { Config } from "./config.ts";
 import type { InboundEvent } from "./events.ts";
 import { decodeButtonId } from "./forms.ts";
 import { errMsg, log, maskPhone, shortId, type Fields } from "./logger.ts";
-import type { Store } from "./store.ts";
+import type { Form, Store } from "./store.ts";
+import { approvability } from "./pipeline/formview.ts";
+import { techKey, type VoicePipeline } from "./pipeline/pipeline.ts";
 import { stashTemporarily, type WhatsApp } from "./whatsapp.ts";
 
-export interface Deps { cfg: Config; store: Store; wa: WhatsApp; }
+export interface Deps { cfg: Config; store: Store; wa: WhatsApp; pipeline?: VoicePipeline; }
 
-export async function handleEvent(ev: InboundEvent, d: Deps): Promise<void> {
+export async function handleEvent(ev: InboundEvent, d: Deps, receivedAtMs: number = Date.now()): Promise<void> {
   const base = { msg: shortId(ev.messageId), from: maskPhone(ev.from) };
   if (!d.cfg.allowedTechnicians.has(ev.from)) {
     log("warn", "unauthorized_sender", base);
@@ -18,7 +20,7 @@ export async function handleEvent(ev: InboundEvent, d: Deps): Promise<void> {
     return;
   }
   try {
-    if (ev.kind === "audio") await handleAudio(ev, d, base);
+    if (ev.kind === "audio") await (d.pipeline ? d.pipeline.processVoice(ev, base, receivedAtMs) : handleAudio(ev, d, base));
     else if (ev.kind === "button") await handleButton(ev, d, base);
     else log("info", "message_ignored", { ...base, type: ev.type });
   } catch (e) {
@@ -66,7 +68,34 @@ async function handleButton(ev: Extract<InboundEvent, { kind: "button" }>, d: De
     log("info", "button_already_handled", { ...fields, status: form.status });
     return;
   }
+  if (form.fields) return handlePipelineButton(ev, d, form, dec.action, fields);
   d.store.setStatus(dec.formId, dec.action === "approve" ? "approved" : "editing");
   log("info", "button_click", { ...fields, context_verified: Boolean(ev.contextId) });
   await d.wa.sendText(ev.from, dec.action === "approve" ? `הטופס ${dec.formId} אושר.` : `הטופס ${dec.formId} ממתין לתיקון.`);
+}
+
+/** Buttons of forms created by the voice pipeline: M-2 approval rule and the correction context (PATCH_TARGET). */
+async function handlePipelineButton(ev: Extract<InboundEvent, { kind: "button" }>, d: Deps, form: Form, action: "approve" | "edit", fields: Fields) {
+  if (form.techId !== techKey(ev.from)) { // a button of someone else's form: no state change, no reply
+    log("warn", "button_foreign_form", fields);
+    return;
+  }
+  const num = form.number ?? 0;
+  if (action === "approve") {
+    const ap = approvability(form.fields!);
+    if (!ap.ok) { // M-2: needs a customer name and an address or a phone; nothing is invented to satisfy it
+      log("info", "button_blocked_incomplete", { ...fields, missing: ap.missing.length });
+      await d.wa.sendText(ev.from, `לא ניתן לאשר: חסר ${ap.missing.join(" ו")}. לחץ "תקן או הוסף" ושלח את הפרטים.`);
+      return;
+    }
+    d.store.setStatus(form.formId, "approved");
+    log("info", "button_click", { ...fields, context_verified: Boolean(ev.contextId), m2_ok: true });
+    await d.wa.sendText(ev.from, `טופס #${num} אושר ונשמר.`);
+    return;
+  }
+  d.store.setStatus(form.formId, "editing");
+  d.store.setPatchTarget(form.techId!, { formId: form.formId, revision: form.revision, expiresAt: Date.now() + (d.cfg.pipeline?.patchTtlMs ?? 600000) });
+  log("info", "button_click", { ...fields, context_verified: Boolean(ev.contextId), patch_context_open: true });
+  const nm = form.fields!.customer_name;
+  await d.wa.sendText(ev.from, nm?.shown === "VALUE" ? `מחכה לתיקון לטופס אצל ${nm.text}` : `מחכה לתיקון לטופס מספר ${num}`);
 }

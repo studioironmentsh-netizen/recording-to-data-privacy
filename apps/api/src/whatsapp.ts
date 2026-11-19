@@ -1,14 +1,17 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Config } from "./config.ts";
 import { BUTTON_TITLES, encodeButtonId } from "./forms.ts";
 
 export class GraphError extends Error {}
+export const BODY_MAX = 1024; // WhatsApp reply-button body limit
 
 export interface WhatsApp {
   sendText(to: string, text: string): Promise<void>;
   sendForm(to: string, formId: string, revision: number): Promise<string>;
+  /** Sends the rendered form with exactly two buttons (אשר / תקן או הוסף). Returns the interactive message id. */
+  sendFormMessage(to: string, text: string, formId: string, revision: number): Promise<string>;
   fetchMedia(mediaId: string): Promise<{ bytes: Buffer; mime: string; sha256Reported?: string }>;
 }
 
@@ -47,11 +50,25 @@ export class GraphWhatsApp implements WhatsApp {
   }
 
   async sendForm(to: string, formId: string, revision: number): Promise<string> {
+    return this.sendInteractive(to, `טופס ניסיוני ${formId} (גרסה ${revision}). נא לאשר או לתקן.`, formId, revision);
+  }
+
+  async sendFormMessage(to: string, text: string, formId: string, revision: number): Promise<string> {
+    let body = text;
+    if (text.length > BODY_MAX) {
+      // Reply-button bodies are limited to 1024 chars: send the full form as text, then the buttons with a short body.
+      for (let i = 0; i < text.length; i += 3800) await this.sendText(to, text.slice(i, i + 3800));
+      body = `טופס ${formId} (גרסה ${revision}). אשר או תקן?`;
+    }
+    return this.sendInteractive(to, body, formId, revision);
+  }
+
+  private async sendInteractive(to: string, body: string, formId: string, revision: number): Promise<string> {
     const j = await this.post({
       messaging_product: "whatsapp", to, type: "interactive",
       interactive: {
         type: "button",
-        body: { text: `טופס ניסיוני ${formId} (גרסה ${revision}). נא לאשר או לתקן.` },
+        body: { text: body },
         action: {
           buttons: (["approve", "edit"] as const).map((a) => ({
             type: "reply",
@@ -80,6 +97,24 @@ export class GraphWhatsApp implements WhatsApp {
     if (bytes.length > this.cfg.mediaMaxBytes) throw new GraphError("media too large");
     return { bytes, mime: String(m.mime_type ?? ""), sha256Reported: typeof m.sha256 === "string" ? m.sha256 : undefined };
   }
+}
+
+/** Writes media to a private temp file for the STT worker; caller must call the returned cleanup() in `finally`. */
+export function writeTempAudio(dataDir: string, bytes: Buffer, name: string): { path: string; cleanup: () => void } {
+  const dir = join(dataDir, "tmp-media");
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, `${name}.audio`);
+  writeFileSync(path, bytes, { mode: 0o600 });
+  return { path, cleanup: () => { try { unlinkSync(path); } catch { /* already gone */ } } };
+}
+
+/** Crash recovery: removes audio files left behind by a previous process (called once at startup). Returns how many were removed. */
+export function sweepTempAudio(dataDir: string): number {
+  const dir = join(dataDir, "tmp-media");
+  if (!existsSync(dir)) return 0;
+  let n = 0;
+  for (const f of readdirSync(dir)) if (f.endsWith(".audio") || f.endsWith(".bin")) { try { unlinkSync(join(dir, f)); n++; } catch { /* ignore */ } }
+  return n;
 }
 
 /** Writes bytes to a temp file, returns evidence, deletes per keepSeconds. */

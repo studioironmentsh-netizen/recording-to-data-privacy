@@ -1,0 +1,4 @@
+# Pinned per research local_stt/requirements-windows.txt (faster-whisper 1.2.1 needs av<19).
+faster-whisper==1.2.1
+av==18.1.0
+ctranslate2==4.9.0

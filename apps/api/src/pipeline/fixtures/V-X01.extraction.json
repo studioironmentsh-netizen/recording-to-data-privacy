@@ -1,0 +1,162 @@
+{
+ "clarification_requests": [],
+ "contract_version": "STAGEB-EXTRACTION-1.0.0",
+ "extracted_fields": {
+  "customer_address": {
+   "evidence_state": "PRESENT",
+   "needs_clarification": false,
+   "value": "רחוב הדקל 3"
+  },
+  "customer_external_number": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "customer_name": {
+   "evidence_state": "PRESENT",
+   "needs_clarification": false,
+   "value": "דן לוי"
+  },
+  "customer_phone": {
+   "evidence_state": "PRESENT",
+   "needs_clarification": false,
+   "value": "0521234567"
+  },
+  "next_visit": {
+   "evidence_state": "PRESENT",
+   "needs_clarification": false,
+   "value": {
+    "date": null,
+    "day_part": "MORNING",
+    "description": null,
+    "expression": "ביום ראשון בבוקר",
+    "kind": "RELATIVE",
+    "time": null
+   }
+  },
+  "parts_price": {
+   "evidence_state": "PRESENT",
+   "needs_clarification": false,
+   "value": {
+    "amount": "100",
+    "currency": "ILS"
+   }
+  },
+  "parts_vat_basis": {
+   "evidence_state": "PRESENT",
+   "needs_clarification": false,
+   "value": "INCLUDED"
+  },
+  "spare_parts": {
+   "evidence_state": "PRESENT",
+   "needs_clarification": false,
+   "value": [
+    {
+     "name": "קבל"
+    },
+    {
+     "name": "מאוורר"
+    }
+   ]
+  },
+  "visit_date_statement": {
+   "evidence_state": "MISSING",
+   "needs_clarification": false,
+   "value": null
+  },
+  "visit_price": {
+   "evidence_state": "PRESENT",
+   "needs_clarification": false,
+   "value": {
+    "amount": "250",
+    "currency": "ILS"
+   }
+  },
+  "visit_vat_basis": {
+   "evidence_state": "PRESENT",
+   "needs_clarification": false,
+   "value": "EXCLUDED"
+  },
+  "work_summary": {
+   "evidence_state": "PRESENT",
+   "needs_clarification": false,
+   "value": "החלפתי קבל ומאוורר"
+  }
+ },
+ "extraction_metadata": {
+  "extractor_version": "fx-1",
+  "input_id": "FX|x",
+  "input_sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+  "model_id": "fixture",
+  "model_version": "1",
+  "pipeline_type": "B_STT_TRANSCRIPT",
+  "prompt_sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+  "prompt_version": "none",
+  "provider_id": "fixture",
+  "provider_kind": "MOCK",
+  "timing_ms": 1,
+  "usage": null
+ },
+ "field_states": {
+  "customer_address": {
+   "evidence_quote": "ברחוב הדקל 3",
+   "uncertainty_reason": "KNOWN"
+  },
+  "customer_external_number": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "customer_name": {
+   "evidence_quote": "דן לוי",
+   "uncertainty_reason": "KNOWN"
+  },
+  "customer_phone": {
+   "evidence_quote": "0521234567",
+   "uncertainty_reason": "KNOWN"
+  },
+  "next_visit": {
+   "evidence_quote": "ביום ראשון בבוקר",
+   "uncertainty_reason": "KNOWN"
+  },
+  "parts_price": {
+   "evidence_quote": "והחלקים 100 שקל",
+   "uncertainty_reason": "KNOWN"
+  },
+  "parts_vat_basis": {
+   "evidence_quote": "כולל מעמ",
+   "uncertainty_reason": "KNOWN"
+  },
+  "spare_parts": {
+   "evidence_quote": "החלפתי קבל ומאוורר",
+   "item_timing": [
+    "REPLACED",
+    "REPLACED"
+   ],
+   "uncertainty_reason": "KNOWN"
+  },
+  "visit_date_statement": {
+   "evidence_quote": null,
+   "uncertainty_reason": "NOT_MENTIONED"
+  },
+  "visit_price": {
+   "evidence_quote": "העבודה עלתה 250 שקל",
+   "uncertainty_reason": "KNOWN"
+  },
+  "visit_vat_basis": {
+   "evidence_quote": "לא כולל מעמ",
+   "uncertainty_reason": "KNOWN"
+  },
+  "work_summary": {
+   "evidence_quote": "החלפתי קבל ומאוורר",
+   "summary_items": [
+    {
+     "kind": "ACTION_DONE",
+     "text": "החלפתי קבל ומאוורר"
+    }
+   ],
+   "uncertainty_reason": "KNOWN"
+  }
+ },
+ "template_version": "ac-pilot-srs46-0.1",
+ "unassigned_business_info": []
+}
