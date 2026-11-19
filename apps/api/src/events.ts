@@ -2,6 +2,7 @@
 export type InboundEvent =
   | { kind: "audio"; messageId: string; from: string; mediaId: string; mime: string; voice: boolean }
   | { kind: "button"; messageId: string; from: string; buttonId: string; title: string; contextId?: string }
+  | { kind: "status"; messageId: string; from: string; status: string; timestamp: number } // delivery receipt for OUR message (from = recipient)
   | { kind: "other"; messageId: string; from: string; type: string };
 
 type Json = Record<string, any>;
@@ -13,6 +14,11 @@ export function parseWebhook(body: unknown): InboundEvent[] {
   for (const entry of b.entry) {
     for (const change of entry?.changes ?? []) {
       if (change?.field !== "messages") continue;
+      for (const st of change?.value?.statuses ?? []) {
+        if (typeof st?.id === "string" && typeof st?.recipient_id === "string" && typeof st?.status === "string") {
+          out.push({ kind: "status", messageId: st.id, from: st.recipient_id, status: st.status, timestamp: Number(st.timestamp ?? 0) });
+        }
+      }
       for (const m of change?.value?.messages ?? []) {
         if (typeof m?.id !== "string" || typeof m?.from !== "string") continue;
         if (m.type === "audio" && typeof m.audio?.id === "string") {

@@ -10,6 +10,7 @@ import { GraphWhatsApp, sweepTempAudio } from "./whatsapp.ts";
 import { PythonControls } from "./pipeline/controls.ts";
 import { StructuredExtractor } from "./pipeline/extractor.ts";
 import { AnthropicLlm, evaluateLiveGate } from "./pipeline/llm.ts";
+import { OutboxRunner } from "./pipeline/outbox.ts";
 import { VoicePipeline } from "./pipeline/pipeline.ts";
 import { PythonSttWorker } from "./pipeline/stt.ts";
 
@@ -95,7 +96,13 @@ export function buildDeps(cfg: Config, env: NodeJS.ProcessEnv = process.env): De
   const swept = sweepTempAudio(cfg.dataDir); // orphaned audio from a crashed run never survives a restart
   log("info", "pipeline_configured", { extractor: p.extractorMode, live_calls_enabled: extractor !== null, swept_temp_files: swept });
   void stt.warmUp().catch(() => log("error", "stt_warmup_failed"));
-  return { cfg, store, wa, pipeline: new VoicePipeline({ cfg, store, wa, stt, extractor }) };
+  const outbox = new OutboxRunner({ cfg, store, wa });
+  const pipeline = new VoicePipeline({ cfg, store, wa, stt, extractor, outbox });
+  const rec = pipeline.recoverAfterRestart(); // dead receipts -> durable "please resend" notice; stuck sends -> retried
+  log("info", "recovery_done", { receipts_failed: rec.receipts, outbox_requeued: rec.outbox });
+  outbox.start();
+  void outbox.drain();
+  return { cfg, store, wa, pipeline, outbox };
 }
 
 if (import.meta.main) {

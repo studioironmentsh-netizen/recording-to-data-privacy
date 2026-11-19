@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { FIELD_KEYS, validate, type Problem } from "./contract/validate-extraction.ts";
 import type { ControlsPort, Presented } from "./controls.ts";
 import { LlmError, BUDGET, type LlmPort } from "./llm.ts";
+import { applyQuantityNormalization } from "./norm.ts";
+import type { CircuitBreaker } from "./breaker.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PROMPT_FILE = join(HERE, "contract", "extraction_prompt_v4_ba03.txt");
@@ -23,6 +25,7 @@ export interface ExtractorConfig {
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
   jitter?: () => number;
+  breaker?: CircuitBreaker; // FP-03: shared per provider
 }
 
 export const DEFAULT_EXTRACTOR_CONFIG: ExtractorConfig = {
@@ -33,9 +36,9 @@ export type FailureCode =
   | "LLM_REJECTED" | "LLM_REFUSAL" | "LLM_UNAVAILABLE" | "LLM_BUDGET" | "LLM_GATE_CLOSED" | "UNPARSEABLE" | "ENVELOPE_INVALID"
   | "NOTHING_TO_SALVAGE" | "NO_BUSINESS_CONTENT" | "DEADLINE" | "CONTROLS_FAILED";
 
-export interface AttemptLog { n: number; outcome: string; ms: number; inputTokens: number | null; outputTokens: number | null }
+export interface AttemptLog { n: number; outcome: string; ms: number; llmMs: number; validationMs: number; inputTokens: number | null; outputTokens: number | null }
 export type ExtractionOutcome =
-  | { ok: true; presented: Presented; attempts: AttemptLog[]; rejectedFields: string[]; promptSha256: string; providerKind: "MOCK" | "REAL" }
+  | { ok: true; presented: Presented; attempts: AttemptLog[]; rejectedFields: string[]; promptSha256: string; providerKind: "MOCK" | "REAL"; quantityNormalized: number; quantityRejected: number }
   | { ok: false; code: FailureCode; attempts: AttemptLog[] };
 
 export function loadPromptTemplate(): string {
@@ -143,13 +146,25 @@ export class StructuredExtractor {
       if (now() - t0 >= this.cfg.deadlineMs) return { ok: false, code: "DEADLINE", attempts };
       const n = attempts.length + 1;
       const a0 = now();
-      const log = (outcome: string, inTok: number | null = null, outTok: number | null = null) => attempts.push({ n, outcome, ms: now() - a0, inputTokens: inTok, outputTokens: outTok });
+      let llmMs = 0, valMs = 0;
+      const log = (outcome: string, inTok: number | null = null, outTok: number | null = null) => attempts.push({ n, outcome, ms: now() - a0, llmMs, validationMs: valMs, inputTokens: inTok, outputTokens: outTok });
 
+      const br = this.cfg.breaker;
+      if (br) { // FP-03: an open breaker pauses the receipt until its deadline (not dropped; the pause is not an attempt)
+        const wait = br.waitMs(now());
+        if (wait > 0) {
+          if (now() - t0 + wait >= this.cfg.deadlineMs) return { ok: false, code: "DEADLINE", attempts };
+          await sleep(wait);
+        }
+      }
       let res;
+      const l0 = now();
       try {
         res = await this.llm.complete({ model: MODEL_ID, maxTokens, effort: this.cfg.effort, prompt, timeoutMs: this.cfg.timeoutMs });
       } catch (e) {
+        llmMs = now() - l0;
         const code = e instanceof LlmError ? e.code : "NETWORK";
+        if (br && ["TIMEOUT", "SERVER", "NETWORK", "RATE_LIMIT"].includes(code)) br.recordFailure(now());
         log(`LLM_${code}`);
         if (code === "BUDGET") return { ok: false, code: "LLM_BUDGET", attempts };
         if (code === "GATE_CLOSED") return { ok: false, code: "LLM_GATE_CLOSED", attempts };
@@ -164,6 +179,8 @@ export class StructuredExtractor {
         continue;
       }
 
+      llmMs = now() - l0;
+      br?.recordSuccess();
       if (res.stopReason === "refusal") { log("REFUSAL", res.inputTokens, res.outputTokens); return { ok: false, code: "LLM_REFUSAL", attempts }; } // N4: no retry
       if (res.stopReason === "max_tokens") { // SALV-R16: unparseable; one retry only if below the ceiling
         log("TRUNCATED", res.inputTokens, res.outputTokens);
@@ -180,8 +197,10 @@ export class StructuredExtractor {
         lastCode = model ? "ENVELOPE_INVALID" : "UNPARSEABLE";
         continue; // SALV-R2: one more attempt within the shared quota
       }
-      const doc = assemble(model, { providerKind: this.llm.kind, modelVersion: res.modelVersion, promptSha: this.promptSha, inputSha, ms: now() - a0, usage: { n, outcome: "", ms: 0, inputTokens: res.inputTokens, outputTokens: res.outputTokens } });
+      const doc = assemble(model, { providerKind: this.llm.kind, modelVersion: res.modelVersion, promptSha: this.promptSha, inputSha, ms: now() - a0, usage: { n, outcome: "", ms: 0, llmMs: 0, validationMs: 0, inputTokens: res.inputTokens, outputTokens: res.outputTokens } });
 
+      const v0 = now();
+      const norm = applyQuantityNormalization(doc); // SALV-R3: NORM-2.0 before any AI retry, no AI cost
       const s = salvage(doc, transcript); // P2/P3
       if (s.kind === "DOC_FAIL") { log("ENVELOPE_INVALID", res.inputTokens, res.outputTokens); lastCode = "ENVELOPE_INVALID"; continue; }
 
@@ -192,7 +211,7 @@ export class StructuredExtractor {
       }
 
       let presented: Presented;
-      try { presented = await this.controls.present(s.doc, transcript); } // P3 controls K1..K8 + presenter
+      try { presented = await this.controls.present(s.doc, transcript); valMs = now() - v0; } // P3 controls K1..K8 + presenter
       catch { log("CONTROLS_FAILED", res.inputTokens, res.outputTokens); return { ok: false, code: "CONTROLS_FAILED", attempts }; }
 
       const classes = presented.presentation;
@@ -207,7 +226,7 @@ export class StructuredExtractor {
       }
       log("ACCEPTED", res.inputTokens, res.outputTokens);
       const rejectedFields = FIELD_KEYS.filter((k) => classes[k]?.value_removed || s.rejected.includes(k));
-      return { ok: true, presented, attempts, rejectedFields, promptSha256: this.promptSha, providerKind: this.llm.kind };
+      return { ok: true, presented, attempts, rejectedFields, promptSha256: this.promptSha, providerKind: this.llm.kind, quantityNormalized: norm.normalized, quantityRejected: norm.rejected };
     }
     return { ok: false, code: lastCode, attempts };
   }

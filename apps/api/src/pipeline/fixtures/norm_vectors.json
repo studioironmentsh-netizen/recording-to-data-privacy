@@ -1,0 +1,40 @@
+{
+ "version": "NORM-2.0-TEST-VECTORS-1",
+ "note": "Specification vectors for SRS 4.9.0 §12.3. Fictional strings. 'expect' is the normalized string or null; 'reason' is the expected reason code.",
+ "normalize": [
+  {"id": "P01", "value": "שתי", "quote": "החלפתי שני כבלים וחיישן טמפרטורה", "item": "כבלים", "unit": null, "expect": "2", "reason": "NORM-QTY", "why": "HEB-004 shape: feminine form in value, masculine in quote, same number"},
+  {"id": "P02", "value": "שתים עשרה", "quote": "התקנתי שתים עשרה יחידות של מפזר", "item": "מפזר", "unit": "יחידות", "expect": "12", "reason": "NORM-QTY", "why": "above 10, unit adjacency"},
+  {"id": "P03", "value": "עשרים", "quote": "הוספתי עשרים יחידות של מסנן", "item": "מסנן", "unit": "יחידות", "expect": "20", "reason": "NORM-QTY", "why": "tens"},
+  {"id": "P04", "value": "עשרים ושתיים", "quote": "החלפתי עשרים ושתיים ברגים", "item": "ברגים", "unit": null, "expect": "22", "reason": "NORM-QTY", "why": "tens + vav + unit"},
+  {"id": "P05", "value": "מאה ועשרים", "quote": "הובאו מאה ועשרים ברגים", "item": "ברגים", "unit": null, "expect": "120", "reason": "NORM-QTY", "why": "hundreds"},
+  {"id": "P06", "value": "שלוש מאות", "quote": "קניתי שלוש מאות ברגים", "item": "ברגים", "unit": null, "expect": "300", "reason": "NORM-QTY", "why": "multiples of hundred"},
+  {"id": "P07", "value": "מאתיים וחמישים", "quote": "הותקנו מאתיים וחמישים ברגים", "item": "ברגים", "unit": null, "expect": "250", "reason": "NORM-QTY", "why": "מאתיים + tens"},
+  {"id": "P08", "value": "תשע מאות תשעים ותשע", "quote": "יש תשע מאות תשעים ותשע ברגים", "item": "ברגים", "unit": null, "expect": "999", "reason": "NORM-QTY", "why": "upper bound of the supported grammar"},
+  {"id": "P09", "value": "אחת עשרה", "quote": "התקנתי אחת עשרה יחידות", "item": "מפזר", "unit": "יחידות", "expect": "11", "reason": "NORM-QTY", "why": "feminine teen"},
+  {"id": "P10", "value": "שלושה", "quote": "הוחלפו שלושה כבלים", "item": "כבלים", "unit": null, "expect": "3", "reason": "NORM-QTY", "why": "masculine unit"},
+  {"id": "P11", "value": "ארבעים וחמש", "quote": "ארבעים וחמש מטר כבל", "item": "כבל", "unit": "מטר", "expect": "45", "reason": "NORM-QTY", "why": "unit adjacency with tens+units"},
+  {"id": "N01", "value": "כמה", "quote": "החלפתי כמה כבלים", "item": "כבלים", "unit": null, "expect": null, "reason": "UNSUPPORTED_EXPRESSION", "why": "vague quantity"},
+  {"id": "N02", "value": "זוג", "quote": "החלפתי זוג כבלים", "item": "כבלים", "unit": null, "expect": null, "reason": "UNSUPPORTED_EXPRESSION", "why": "ambiguous (pair)"},
+  {"id": "N03", "value": "חצי", "quote": "הוספתי חצי מטר כבל", "item": "כבל", "unit": "מטר", "expect": null, "reason": "UNSUPPORTED_EXPRESSION", "why": "fraction not supported"},
+  {"id": "N04", "value": "אלף", "quote": "יש אלף ברגים", "item": "ברגים", "unit": null, "expect": null, "reason": "UNSUPPORTED_EXPRESSION", "why": "thousands not in NORM-2.0; this is a grammar coverage limit, NOT a business limit (QTY-R1)"},
+  {"id": "N05", "value": "שתי", "quote": "החלפתי כבלים", "item": "כבלים", "unit": null, "expect": null, "reason": "NO_EVIDENCE", "why": "no number expression in the quote"},
+  {"id": "N06", "value": "שלושה", "quote": "החלפתי שני כבלים", "item": "כבלים", "unit": null, "expect": null, "reason": "VALUE_QUOTE_CONFLICT", "why": "value contradicts the quote"},
+  {"id": "N07", "value": "שני", "quote": "החלפתי שני כבלים וחיישן", "item": "חיישן", "unit": null, "expect": null, "reason": "ITEM_OR_UNIT_MISMATCH", "why": "number belongs to another item"},
+  {"id": "N08", "value": "שתי", "quote": "הוספתי שתי יחידות", "item": "כבל", "unit": "מטר", "expect": null, "reason": "ITEM_OR_UNIT_MISMATCH", "why": "unit in the quote differs from the field unit"},
+  {"id": "N09", "value": "שני", "quote": "שני כבלים ועוד שלושה כבלים", "item": "כבלים", "unit": null, "expect": null, "reason": "AMBIGUOUS_MULTIPLE", "why": "two different quantities for the same item"},
+  {"id": "N10", "value": "אחד", "quote": "החלפתי ממיר אחד", "item": "ממיר", "unit": null, "expect": null, "reason": "ITEM_OR_UNIT_MISMATCH", "why": "number after the noun: placement not supported, fails safe"},
+  {"id": "N11", "value": "עשרות", "quote": "החלפתי עשרות ברגים", "item": "ברגים", "unit": null, "expect": null, "reason": "UNSUPPORTED_EXPRESSION", "why": "vague plural of tens"},
+  {"id": "N12", "value": "שלוש", "quote": null, "item": "כבלים", "unit": null, "expect": null, "reason": "NO_EVIDENCE", "why": "no evidence quote"},
+  {"id": "D01", "value": "12", "quote": "החלפתי 12 כבלים", "item": "כבלים", "unit": null, "expect": null, "reason": "NOT_APPLICABLE_DIGITS", "why": "digits are never touched by NORM"}
+ ],
+ "contract_limit": [
+  {"id": "L01", "value": "11", "ok": true},
+  {"id": "L02", "value": "25", "ok": true},
+  {"id": "L03", "value": "1500", "ok": true, "why": "above NORM grammar, accepted by the contract"},
+  {"id": "L04", "value": "999999", "ok": true},
+  {"id": "L05", "value": "2.5", "ok": true},
+  {"id": "L06", "value": "1000000", "ok": false, "why": "rejected by the canonical pattern, not by NORM"},
+  {"id": "L07", "value": "שתי", "ok": false, "why": "words are never valid quantity values (HEB-004)"},
+  {"id": "L08", "value": "-3", "ok": false}
+ ]
+}

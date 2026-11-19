@@ -14,6 +14,7 @@ export interface PipelineConfig {
 
 export interface Config {
   pipeline?: PipelineConfig; // absent => legacy behaviour (download, hash, delete)
+  graphBaseUrl?: string; // test/mock Graph endpoint only; ignored when NODE_ENV=production
   port: number;
   verifyToken: string;
   accessToken: string;
@@ -70,5 +71,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, apiRoot: string
     mediaMaxBytes: Number(env.MEDIA_MAX_BYTES ?? 16 * 1024 * 1024),
     mediaKeepSeconds: Number(env.MEDIA_KEEP_SECONDS ?? 0),
     pipeline: loadPipelineConfig(env, apiRoot),
+    graphBaseUrl: env.NODE_ENV !== "production" && env.GRAPH_BASE_URL ? env.GRAPH_BASE_URL.replace(/\/+$/, "") : undefined,
   };
 }

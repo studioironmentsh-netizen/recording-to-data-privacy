@@ -2,16 +2,28 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Config } from "./config.ts";
-import { BUTTON_TITLES, encodeButtonId } from "./forms.ts";
+import { BUTTON_TITLES, encodeButtonId, signedButtonId } from "./forms.ts";
 
-export class GraphError extends Error {}
+export class GraphError extends Error {
+  readonly status?: number;
+  readonly graphCode?: number;
+  constructor(message: string, status?: number, graphCode?: number) {
+    super(message);
+    this.status = status;
+    this.graphCode = graphCode;
+  }
+  /** Meta error 131047: the 24-hour customer service window is closed (free-form message not allowed). */
+  get windowClosed(): boolean { return this.graphCode === 131047; }
+  /** Retrying can help: network failures, 429 and 5xx. Other 4xx are permanent. */
+  get retryable(): boolean { return this.status === undefined || this.status === 429 || this.status >= 500; }
+}
 export const BODY_MAX = 1024; // WhatsApp reply-button body limit
 
 export interface WhatsApp {
   sendText(to: string, text: string): Promise<void>;
   sendForm(to: string, formId: string, revision: number): Promise<string>;
-  /** Sends the rendered form with exactly two buttons (אשר / תקן או הוסף). Returns the interactive message id. */
-  sendFormMessage(to: string, text: string, formId: string, revision: number): Promise<string>;
+  /** Sends ONE interactive message with exactly two buttons (אשר / תקן או הוסף) carrying signed ids. Body <= 1024 chars. Returns its message id. */
+  sendFormButtons(to: string, body: string, formId: string, revision: number): Promise<string>;
   fetchMedia(mediaId: string): Promise<{ bytes: Buffer; mime: string; sha256Reported?: string }>;
 }
 
@@ -22,17 +34,19 @@ export class GraphWhatsApp implements WhatsApp {
     this.cfg = cfg;
     this.fetchFn = fetchFn;
   }
-  private base() { return `https://graph.facebook.com/${this.cfg.graphVersion}`; }
+  private base() { return `${this.cfg.graphBaseUrl ?? "https://graph.facebook.com"}/${this.cfg.graphVersion}`; }
   private auth() { return { Authorization: `Bearer ${this.cfg.accessToken}` }; }
 
   private async fail(res: Response, what: string): Promise<never> {
     let detail = "";
+    let code: number | undefined;
     try {
       const j = (await res.json()) as any;
       const e = j?.error;
       detail = `code=${e?.code} subcode=${e?.error_subcode} type=${e?.type}`;
+      code = typeof e?.code === "number" ? e.code : undefined;
     } catch { /* ignore */ }
-    throw new GraphError(`${what} failed: http ${res.status} ${detail}`);
+    throw new GraphError(`${what} failed: http ${res.status} ${detail}`, res.status, code);
   }
 
   private async post(payload: object): Promise<any> {
@@ -50,7 +64,12 @@ export class GraphWhatsApp implements WhatsApp {
   }
 
   async sendForm(to: string, formId: string, revision: number): Promise<string> {
-    return this.sendInteractive(to, `טופס ניסיוני ${formId} (גרסה ${revision}). נא לאשר או לתקן.`, formId, revision);
+    return this.sendInteractive(to, `טופס ניסיוני ${formId} (גרסה ${revision}). נא לאשר או לתקן.`, formId, revision, false);
+  }
+
+  async sendFormButtons(to: string, body: string, formId: string, revision: number): Promise<string> {
+    if (body.length > BODY_MAX) throw new GraphError("button body too long");
+    return this.sendInteractive(to, body, formId, revision, true);
   }
 
   async sendFormMessage(to: string, text: string, formId: string, revision: number): Promise<string> {
@@ -60,10 +79,10 @@ export class GraphWhatsApp implements WhatsApp {
       for (let i = 0; i < text.length; i += 3800) await this.sendText(to, text.slice(i, i + 3800));
       body = `טופס ${formId} (גרסה ${revision}). אשר או תקן?`;
     }
-    return this.sendInteractive(to, body, formId, revision);
+    return this.sendFormButtons(to, body, formId, revision);
   }
 
-  private async sendInteractive(to: string, body: string, formId: string, revision: number): Promise<string> {
+  private async sendInteractive(to: string, body: string, formId: string, revision: number, signed: boolean): Promise<string> {
     const j = await this.post({
       messaging_product: "whatsapp", to, type: "interactive",
       interactive: {
@@ -72,7 +91,7 @@ export class GraphWhatsApp implements WhatsApp {
         action: {
           buttons: (["approve", "edit"] as const).map((a) => ({
             type: "reply",
-            reply: { id: encodeButtonId(a, formId, revision), title: BUTTON_TITLES[a] },
+            reply: { id: signed ? signedButtonId(a, formId, revision, this.cfg.appSecret) : encodeButtonId(a, formId, revision), title: BUTTON_TITLES[a] },
           })),
         },
       },
@@ -88,7 +107,8 @@ export class GraphWhatsApp implements WhatsApp {
     if (!meta.ok) return this.fail(meta, "media lookup");
     const m = (await meta.json()) as any;
     const url = new URL(String(m.url));
-    if (url.protocol !== "https:") throw new GraphError("media url not https");
+    const local = this.cfg.graphBaseUrl !== undefined && (url.hostname === "127.0.0.1" || url.hostname === "localhost"); // test/mock endpoint only
+    if (url.protocol !== "https:" && !(local && url.protocol === "http:")) throw new GraphError("media url not https");
     const res = await this.fetchFn(url, { headers: this.auth() });
     if (!res.ok) return this.fail(res, "media download");
     const len = Number(res.headers.get("content-length") ?? 0);

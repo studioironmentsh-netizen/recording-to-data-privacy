@@ -22,7 +22,7 @@ class FakeWA implements WhatsApp {
   media = new Map<string, Buffer>();
   async sendText(_to: string, text: string) { this.texts.push(text); }
   async sendForm() { return "wamid.FAKE"; }
-  async sendFormMessage() { return "wamid.FAKE"; }
+  async sendFormButtons() { return "wamid.FAKE"; }
   async fetchMedia(id: string) {
     const b = this.media.get(id);
     if (!b) throw new Error(`media lookup failed: http 401 Bearer ${TOKEN}`);
@@ -182,7 +182,7 @@ describe("L-05/L-06/L-07 buttons", () => {
 
 describe("button id codec & Meta limits", () => {
   it("round-trips and validates", () => {
-    assert.deepEqual(decodeButtonId(encodeButtonId("edit", "F-1", 12)), { action: "edit", formId: "F-1", revision: 12 });
+    assert.deepEqual(decodeButtonId(encodeButtonId("edit", "F-1", 12)), { action: "edit", formId: "F-1", revision: 12, sig: undefined });
     assert.equal(decodeButtonId("ap:F:0"), null);
     assert.throws(() => encodeButtonId("approve", "bad id", 1));
   });

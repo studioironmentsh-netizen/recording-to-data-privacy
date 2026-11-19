@@ -25,7 +25,9 @@ function fmtValue(k: string, v: any): string {
   if ((k === "parts_price" || k === "visit_price") && typeof v === "object") return `${v.amount} ₪`;
   if ((k === "visit_date_statement") && typeof v === "object") return String(v.date ?? v.expression);
   if (k === "next_visit" && typeof v === "object") {
-    return [v.description ?? v.expression ?? v.date, v.day_part ? DAY_PART[v.day_part] : "", v.time ?? ""].filter(Boolean).join(" ");
+    const main = String(v.description ?? v.expression ?? v.date ?? "");
+    const part = v.day_part ? DAY_PART[v.day_part]! : "";
+    return [main, part && !main.includes(part) ? part : "", v.time ?? ""].filter(Boolean).join(" ");
   }
   return String(v);
 }
@@ -38,7 +40,7 @@ function futureActionNote(doc: any): string | null {
 }
 
 /** Maps the controls' classification to the three display states; nothing is guessed or completed. */
-export function toStoredFields(p: Presented, rejectedFields: string[]): StoredFields {
+export function toStoredFields(p: Presented, rejectedFields: string[], quantityRejected = 0): StoredFields {
   const out: StoredFields = {};
   for (const [k] of FIELD_LABELS) {
     const ef = p.displayed.extracted_fields[k];
@@ -54,6 +56,7 @@ export function toStoredFields(p: Presented, rejectedFields: string[]): StoredFi
         else if (vp.class === "VERIFIED" && vef.value === "EXCLUDED") text += " לא כולל מע״מ";
         else if (vef.evidence_state === "UNCLEAR" || vp.class === "REJECTED_INFERENCE" || vp.class === "HUMAN_CONFIRM") text += " (מע״מ: לא ברור)";
       }
+      if (k === "spare_parts" && quantityRejected > 0) text += " — כמות לתיקון"; // QTY-R3(6): quantity null + marked
       out[k] = { shown: "VALUE", text, value: ef.value };
     } else if (ef.evidence_state === "NOT_DECIDED") {
       out[k] = { shown: "VALUE", text: "טרם נקבע" }; // M-1: said explicitly, shown as a value

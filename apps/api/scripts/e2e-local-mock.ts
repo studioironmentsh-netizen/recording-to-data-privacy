@@ -10,10 +10,12 @@ import { setSink } from "../src/logger.ts";
 import { PythonControls } from "../src/pipeline/controls.ts";
 import { StructuredExtractor } from "../src/pipeline/extractor.ts";
 import { MockLlm, mockReply, type LlmRequest } from "../src/pipeline/llm.ts";
+import { OutboxRunner } from "../src/pipeline/outbox.ts";
 import { VoicePipeline } from "../src/pipeline/pipeline.ts";
 import { PythonSttWorker } from "../src/pipeline/stt.ts";
 import { CONTROLS_SCRIPT, FakeWA, PYTHON, docWith, modelReply } from "../src/pipeline/testkit.ts";
 import { Store } from "../src/store.ts";
+import { techKey } from "../src/pipeline/techkey.ts";
 import { join as j } from "node:path";
 
 const [modelDir, ...audio] = process.argv.slice(2);
@@ -37,7 +39,10 @@ const llm = new MockLlm([]);
   const words = t.split(/\s+/).filter(Boolean).slice(0, 6).join(" ");
   return mockReply(modelReply(docWith({ work_summary: [words, words] })));
 });
-const pipeline = new VoicePipeline({ cfg, store: new Store(dir), wa, stt, extractor: new StructuredExtractor(llm, new PythonControls(PYTHON, CONTROLS_SCRIPT)), mockWatermark: true });
+const store = new Store(dir);
+store.touchInbound(techKey("15550001111"), Date.now());
+const outbox = new OutboxRunner({ cfg, store, wa });
+const pipeline = new VoicePipeline({ cfg, store, wa, stt, extractor: new StructuredExtractor(llm, new PythonControls(PYTHON, CONTROLS_SCRIPT)), outbox });
 
 const t0 = Date.now();
 await stt.warmUp();

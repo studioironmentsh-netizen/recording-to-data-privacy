@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
 import type { Config } from "../config.ts";
-import { encodeButtonId } from "../forms.ts";
+import { signedButtonId } from "../forms.ts";
 import { registerSecrets, setSink } from "../logger.ts";
 import { createApp } from "../server.ts";
 import { sign } from "../signature.ts";
@@ -14,6 +14,7 @@ import { GraphWhatsApp, sweepTempAudio, writeTempAudio } from "../whatsapp.ts";
 import { PythonControls } from "./controls.ts";
 import { StructuredExtractor } from "./extractor.ts";
 import { MockLlm, mockReply } from "./llm.ts";
+import { OutboxRunner } from "./outbox.ts";
 import { VoicePipeline } from "./pipeline.ts";
 import { MockStt, SttError } from "./stt.ts";
 import { CONTROLS_SCRIPT, FakeWA, PYTHON, TRANSCRIPT, docWith, fixtureDoc, modelReply } from "./testkit.ts";
@@ -57,8 +58,9 @@ before(async () => {
   });
   llm = new MockLlm([]);
   const extractor = new StructuredExtractor(llm, new PythonControls(PYTHON, CONTROLS_SCRIPT), { sleep: async () => {}, jitter: () => 0 });
-  const pipeline = new VoicePipeline({ cfg, store, wa, stt, extractor, mockWatermark: false });
-  server = createApp({ cfg, store, wa, pipeline }, (p) => { pending = p; });
+  const outbox = new OutboxRunner({ cfg, store, wa, mockWatermark: false });
+  const pipeline = new VoicePipeline({ cfg, store, wa, stt, extractor, outbox });
+  server = createApp({ cfg, store, wa, pipeline, outbox }, (p) => { pending = p; });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/webhook`;
 });
@@ -98,7 +100,7 @@ describe("local mock E2E: voice -> STT -> Claude(mock) -> form -> two buttons", 
     assert.deepEqual(tmpFiles(), [], "temporary audio removed after success");
     const done = logs().find((l) => l.event === "form_sent");
     assert.ok(done);
-    for (const k of ["queue_wait_ms", "media_download_ms", "stt_ms", "stt_transcribe_ms", "extraction_ms", "form_build_ms", "whatsapp_send_ms", "total_ms", "ai_calls"]) assert.ok(k in done, `timing field ${k}`);
+    for (const k of ["webhook_to_start_ms", "media_download_ms", "t_media_download_completed_ms", "t_stt_started_ms", "t_stt_completed_ms", "t_extraction_started_ms", "t_extraction_completed_ms", "t_validation_completed_ms", "t_draft_saved_ms", "t_outbound_submitted_ms", "stt_ms", "stt_transcribe_ms", "extraction_ms", "ai_first_call_ms", "validation_ms", "form_build_ms", "outbound_ms", "total_ms", "ai_calls"]) assert.ok(k in done, `timing field ${k}`);
     assert.equal(done.ai_calls, 1);
     const all = lines.join("\n");
     for (const secret of ["דן לוי", "הדקל", "0521234567", "קבל", TRANSCRIPT.slice(0, 15), TECH, SECRET, TOKEN]) assert.ok(!all.includes(secret), `log must not contain: ${secret}`);
@@ -171,7 +173,7 @@ describe("buttons on pipeline forms: M-2, duplicates, stale revisions, correctio
 
   it("approve works once; the duplicate click is ignored", async () => {
     const f = await newForm(fixtureDoc("V-X01"));
-    const id = encodeButtonId("approve", f.formId, 1);
+    const id = signedButtonId("approve", f.formId, 1, SECRET);
     await post(click(id, sentIdFor(f.formId)));
     await post(click(id, sentIdFor(f.formId)));
     assert.equal(store.getForm(f.formId)?.status, "approved");
@@ -182,12 +184,12 @@ describe("buttons on pipeline forms: M-2, duplicates, stale revisions, correctio
   it("M-2: no address/phone -> approval refused with the missing list, status unchanged; name+phone only -> approvable", async () => {
     const f1 = await newForm(docWith({ customer_name: ["דן לוי", "דן לוי"], work_summary: ["בדיקה", "בדיקה"] }), "דן לוי בדיקה");
     const s1 = sentIdFor(f1.formId);
-    await post(click(encodeButtonId("approve", f1.formId, 1), s1));
+    await post(click(signedButtonId("approve", f1.formId, 1, SECRET), s1));
     assert.equal(store.getForm(f1.formId)?.status, "draft");
     assert.ok(wa.texts.some((t) => t.startsWith("לא ניתן לאשר: חסר כתובת או טלפון")));
     const f2 = await newForm(docWith({ customer_name: ["דן לוי", "דן לוי"], customer_phone: ["0521234567", "0521234567"] }), "דן לוי טלפון 0521234567");
     const s2 = sentIdFor(f2.formId);
-    await post(click(encodeButtonId("approve", f2.formId, 1), s2));
+    await post(click(signedButtonId("approve", f2.formId, 1, SECRET), s2));
     assert.equal(store.getForm(f2.formId)?.status, "approved");
   });
 
@@ -195,10 +197,10 @@ describe("buttons on pipeline forms: M-2, duplicates, stale revisions, correctio
     const a = await newForm(fixtureDoc("V-X01"));
     const b = await newForm(fixtureDoc("V-X01"));
     const sent = (id: string) => sentIdFor(id);
-    await post(click(encodeButtonId("approve", b.formId, 1), sent(b.formId)));
+    await post(click(signedButtonId("approve", b.formId, 1, SECRET), sent(b.formId)));
     assert.equal(store.getForm(b.formId)?.status, "approved");
     assert.equal(store.getForm(a.formId)?.status, "draft");
-    await post(click(encodeButtonId("approve", a.formId, 1), sent(a.formId), OTHER));
+    await post(click(signedButtonId("approve", a.formId, 1, SECRET), sent(a.formId), OTHER));
     assert.equal(store.getForm(a.formId)?.status, "draft");
     assert.ok(logs().some((l) => l.event === "button_foreign_form"));
   });
@@ -206,7 +208,7 @@ describe("buttons on pipeline forms: M-2, duplicates, stale revisions, correctio
   it("'תקן או הוסף' opens a correction context; the next voice message creates revision 2; the old button is stale", async () => {
     const f = await newForm(docWith({ customer_name: ["דן לוי", "דן לוי"], work_summary: ["בדיקה", "בדיקה"] }), "דן לוי בדיקה");
     const s1 = sentIdFor(f.formId);
-    await post(click(encodeButtonId("edit", f.formId, 1), s1));
+    await post(click(signedButtonId("edit", f.formId, 1, SECRET), s1));
     assert.equal(store.getForm(f.formId)?.status, "editing");
     assert.ok(wa.texts.includes("מחכה לתיקון לטופס אצל דן לוי"));
     sttText = "הטלפון 0521234567";
@@ -217,18 +219,18 @@ describe("buttons on pipeline forms: M-2, duplicates, stale revisions, correctio
     assert.match(lastForm().text, /טלפון: 0521234567/);
     assert.match(lastForm().text, /לקוח: דן לוי/);
     assert.equal(store.getForm(f.formId)?.status, "draft");
-    await post(click(encodeButtonId("approve", f.formId, 1), s1)); // old revision
+    await post(click(signedButtonId("approve", f.formId, 1, SECRET), s1)); // old revision
     assert.ok(logs().some((l) => l.event === "button_stale"));
     assert.equal(store.getForm(f.formId)?.status, "draft");
     const s2 = sentIdFor(f.formId, 2);
-    await post(click(encodeButtonId("approve", f.formId, 2), s2));
+    await post(click(signedButtonId("approve", f.formId, 2, SECRET), s2));
     assert.equal(store.getForm(f.formId)?.status, "approved");
   });
 
   it("a correction that changes nothing valid answers MSG-17 and keeps the context", async () => {
     const f = await newForm(docWith({ customer_name: ["דן לוי", "דן לוי"], work_summary: ["בדיקה", "בדיקה"] }), "דן לוי בדיקה");
     const s1 = sentIdFor(f.formId);
-    await post(click(encodeButtonId("edit", f.formId, 1), s1));
+    await post(click(signedButtonId("edit", f.formId, 1, SECRET), s1));
     sttText = "דן לוי בדיקה";
     (llm as any).script = [mockReply(modelReply(docWith({ customer_name: ["דן לוי", "דן לוי"] })))];
     const before = wa.forms.length;
@@ -240,9 +242,9 @@ describe("buttons on pipeline forms: M-2, duplicates, stale revisions, correctio
 
   it("unknown form id, bad context and malformed ids change nothing", async () => {
     const f = await newForm(fixtureDoc("V-X01"));
-    await post(click(encodeButtonId("approve", "F9999", 1)));
+    await post(click(signedButtonId("approve", "F9999", 1, SECRET)));
     await post(click("nonsense"));
-    await post(click(encodeButtonId("approve", f.formId, 1), "wamid.SOMETHINGELSE"));
+    await post(click(signedButtonId("approve", f.formId, 1, SECRET), "wamid.SOMETHINGELSE"));
     assert.equal(store.getForm(f.formId)?.status, "draft");
     const ev = logs().map((l) => l.event);
     assert.ok(ev.includes("button_unknown_form") && ev.includes("button_unrecognized") && ev.includes("button_context_mismatch"));
@@ -265,7 +267,7 @@ describe("WhatsApp message shape (Graph API payload)", () => {
     assert.equal(sent.length, 1);
     const buttons = sent[0].interactive.action.buttons;
     assert.deepEqual(buttons.map((b: any) => b.reply.title), ["אשר", "תקן או הוסף"]);
-    assert.deepEqual(buttons.map((b: any) => b.reply.id), [encodeButtonId("approve", "F1042", 3), encodeButtonId("edit", "F1042", 3)]);
+    assert.deepEqual(buttons.map((b: any) => b.reply.id), [signedButtonId("approve", "F1042", 3, SECRET), signedButtonId("edit", "F1042", 3, SECRET)]);
     assert.equal(sent[0].interactive.body.text, "טופס קצר");
   });
   it("a form longer than the 1024-char button body is sent as text first, then the two buttons", async () => {

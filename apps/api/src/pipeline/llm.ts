@@ -66,11 +66,22 @@ export function evaluateLiveGate(env: NodeJS.ProcessEnv): GateDecision {
 interface Ledger { calls: number; usd: number }
 
 /** Persistent spend ledger; every call is reserved BEFORE it is made. */
+/** Effective spend cap: min(approved experiment ceiling $10, the account balance the operator configured). Invalid values close the gate. */
+export function budgetCapUsd(env: NodeJS.ProcessEnv): number {
+  const raw = env.ANTHROPIC_BUDGET_USD;
+  if (raw === undefined || raw === "") return BUDGET.maxUsd;
+  const v = Number(raw);
+  if (!Number.isFinite(v) || v <= 0) throw new LlmError("GATE_CLOSED");
+  return Math.min(v, BUDGET.maxUsd);
+}
+
 export class BudgetLedger {
   private file: string;
-  constructor(dir: string) {
+  private maxUsd: number;
+  constructor(dir: string, maxUsd: number = BUDGET.maxUsd) {
     mkdirSync(dir, { recursive: true });
-    this.file = join(dir, "anthropic_ledger.json");
+    this.file = join(dir, "anthropic_ledger.json"); // lives in DATA_DIR, independent of the API key: switching keys never resets the counters
+    this.maxUsd = Math.min(maxUsd, BUDGET.maxUsd);
   }
   private load(): Ledger {
     return existsSync(this.file) ? (JSON.parse(readFileSync(this.file, "utf8")) as Ledger) : { calls: 0, usd: 0 };
@@ -85,7 +96,7 @@ export class BudgetLedger {
   reserve(maxOutputTokens: number): void {
     const l = this.load();
     const worst = (maxOutputTokens * BUDGET.outUsdPerM) / 1e6;
-    if (l.calls + 1 > BUDGET.maxCalls || l.usd + worst > BUDGET.maxUsd) throw new LlmError("BUDGET");
+    if (l.calls + 1 > BUDGET.maxCalls || l.usd + worst > this.maxUsd) throw new LlmError("BUDGET");
     l.calls += 1;
     l.usd += worst; // provisional, corrected in settle()
     this.save(l);
@@ -116,7 +127,7 @@ export class AnthropicLlm implements LlmPort {
     if (!gate.live) throw new LlmError("GATE_CLOSED");
     // maxRetries 0: retries belong to the pipeline policy (bounded, counted, shared quota of 3 calls per message).
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 0 });
-    return new AnthropicLlm(client, new BudgetLedger(dataDir));
+    return new AnthropicLlm(client, new BudgetLedger(dataDir, budgetCapUsd(env)));
   }
 
   /** Test seam: wraps an already-built (fake) client. Not reachable from configuration, so it cannot open the live gate. */

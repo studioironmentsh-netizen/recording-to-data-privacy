@@ -2,7 +2,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { WhatsApp } from "../whatsapp.ts";
+import { GraphError, type WhatsApp } from "../whatsapp.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const API_ROOT = resolve(HERE, "..", "..");
@@ -45,7 +45,9 @@ export class FakeWA implements WhatsApp {
   private n = 0;
   async sendText(_to: string, text: string) { this.texts.push(text); }
   async sendForm() { return "wamid.LEGACY"; }
-  async sendFormMessage(to: string, text: string, formId: string, revision: number) {
+  failNextSends = 0; // inject transient send failures (retry tests)
+  async sendFormButtons(to: string, text: string, formId: string, revision: number) {
+    if (this.failNextSends > 0) { this.failNextSends--; throw new GraphError("send failed: http 503", 503); }
     this.forms.push({ to, text, formId, revision });
     return `wamid.OUT${++this.n}`;
   }
