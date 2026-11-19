@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>מדיניות פרטיות – Recording to Data (DEV)</title>
+<meta name="description" content="מדיניות פרטיות של Recording to Data בשלב ניסוי (DEV).">
+<style>
+  :root { --fg:#1a1a1a; --bg:#fff; --muted:#555; --accent:#0b57d0; --warn-bg:#fff4e5; --warn-bd:#b25e00; --ph-bg:#fff0a8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#ececec; --bg:#16181c; --muted:#b0b0b0; --accent:#8ab4f8; --warn-bg:#3a2a10; --warn-bd:#ffb454; --ph-bg:#5a4b00; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:1rem/1.7 system-ui, "Segoe UI", Arial, sans-serif; }
+  .skip { position:absolute; inset-inline-start:-999px; }
+  .skip:focus { inset-inline-start:1rem; top:1rem; background:var(--bg); padding:.5rem; z-index:10; }
+  main, header, footer { max-width:46rem; margin:0 auto; padding:0 1rem; }
+  header { padding-top:1.5rem; }
+  bdi, .nw { white-space: nowrap; }
+  h1 { font-size:clamp(1.5rem, 5vw, 2rem); line-height:1.3; margin:.5rem 0; }
+  h2 { font-size:1.2rem; margin:2rem 0 .5rem; }
+  p, li { overflow-wrap:anywhere; }
+  .draft { background:var(--warn-bg); border:2px solid var(--warn-bd); border-radius:.5rem; padding:.75rem 1rem; margin:1rem 0; }
+  .ph { background:var(--ph-bg); padding:0 .25em; border-radius:.2em; }
+  a { color:var(--accent); }
+  a:focus-visible { outline:3px solid currentColor; outline-offset:2px; }
+  footer { color:var(--muted); font-size:.9rem; padding-bottom:2rem; border-top:1px solid var(--muted); margin-top:2rem; padding-top:1rem; }
+</style>
+</head>
+<body>
+<a class="skip" href="#content">דלגו לתוכן</a>
+<header>
+  <h1>מדיניות פרטיות – <bdi>Recording to Data</bdi> <span class="nw">(סביבת <bdi>DEV</bdi>)</span></h1>
+  
+</header>
+<main id="content">
+  <p>תחילת תוקף: <span id="effective-date">19.11.2026</span></p>
+
+  <section aria-labelledby="s1">
+    <h2 id="s1">1. מי אחראי על המידע</h2>
+    <p>הגוף האחראי: משה פרידמן, iRON MENTSH.</p>
+    <p>לפניות בנושא פרטיות: <a href="mailto:studio.ironmentsh@gmail.com">studio.ironmentsh@gmail.com</a></p>
+  </section>
+
+  <section aria-labelledby="s2">
+    <h2 id="s2">2. מטרת המערכת והיקף השימוש</h2>
+    <p>Recording to Data היא מערכת שנמצאת בפיתוח ובבדיקה (סביבת DEV). המערכת מאפשרת לטכנאי לשלוח הודעה קולית ב-WhatsApp, שממנה אמורים להתקבל נתונים מובנים לטופס, ולאשר או לתקן את הטופס באמצעות כפתורים.</p>
+    <p><strong>המערכת אינה מיועדת כרגע לנתוני לקוחות אמיתיים.</strong> הבדיקות מתבצעות עם נתוני דמה ועם משתתפי בדיקה מוכרים בלבד. אין להזין במערכת מידע על לקוחות אמיתיים. שימוש מסחרי ומדיניות פרטיות מלאה לשימוש כזה ייבחנו בנפרד לפני כל עלייה לייצור.</p>
+  </section>
+
+  <section aria-labelledby="s3">
+    <h2 id="s3">3. איזה מידע מעובד</h2>
+    <ul>
+      <li>מספר ה-WhatsApp של משתתפי הבדיקה. מידע זה עשוי להיחשב מידע אישי, והוא משמש לזיהוי בודקים מורשים.</li>
+      <li>הודעות קוליות שמשתתפי בדיקה שולחים, ותוכנן.</li>
+      <li>נתונים טכניים: מזהי הודעות, מזהי טפסים וגרסאותיהם, ובחירת הכפתור ("אשר" או "תקן או הוסף").</li>
+      <li>נתוני דמה של טפסים.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s4">
+    <h2 id="s4">4. הודעות קוליות ותמלולים: עיבוד זמני ושמירה</h2>
+    <p>הודעה קולית שנשלחת למערכת מורדת משרתי Meta לשם עיבוד. הקובץ נשמר זמנית בלבד לצורך הטיפול בו, ונמחק מיד לאחר שנבדק גודלו ונרשמה חתימת בדיקה שלו. הקלטות אינן נשמרות במאגר המערכת.</p>
+    <p>תמלולים אינם נשמרים במאגר המערכת. הם משמשים לעיבוד זמני בלבד, והמידע היחיד שנשמר הוא הטופס עצמו (הנתונים המובנים). בשלב הניסוי הנוכחי נשמרים בפועל רק מזהי הטפסים, הגרסאות והסטטוס שלהם.</p>
+    <p>רכיב התמלול עדיין אינו פעיל. עם הפעלתו בסביבת הבדיקה, ההקלטה תועבר לשירות תמלול והטקסט שיתקבל יועבר לספק מודל ה-AI לצורך הפקת הנתונים המובנים. ספק התמלול ייקבע, ויצוין בדף זה לפני הפעלת הרכיב. בסביבה זו ייעשה שימוש בנתוני דמה בלבד.</p>
+  </section>
+
+  <section aria-labelledby="s5">
+    <h2 id="s5">5. גורמים חיצוניים המעורבים בעיבוד</h2>
+    <ul>
+      <li><strong>Meta (WhatsApp Business Platform)</strong> – העברת הודעות WhatsApp, ההודעות הקוליות והכפתורים בין הטכנאי למערכת.</li>
+      <li><strong>Cloudflare</strong> – שירות תשתית. בבדיקות נעשה שימוש במנהרת Cloudflare לחיבור המערכת לאינטרנט, ולכן הודעות הנכנסות מ-Meta עוברות דרך שירות זה כל עוד המנהרה פעילה.</li>
+      <li><strong>שירות תמלול</strong> – המרת הקלטה לטקסט. הרכיב אינו פעיל, ושם הספק יעודכן בדף זה לפני הפעלתו.</li>
+      <li><strong>Anthropic</strong> – ספק מודלי ה-AI. נעשה שימוש במודלי Claude של Anthropic להפקת נתונים מובנים מהטקסט.</li>
+    </ul>
+    <p>מידע עשוי להיות מעובד או מועבר לשרתים הנמצאים מחוץ לישראל. כל אחד מהגורמים האלה מפעיל מדיניות פרטיות ושמירה משלו.</p>
+  </section>
+
+  <section aria-labelledby="s6">
+    <h2 id="s6">6. מטרות השימוש במידע</h2>
+    <p>המידע משמש אך ורק לפיתוח, לבדיקה ולאימות של יכולות המערכת: קליטת הודעות קוליות, הפקת נתונים מובנים, שליחת טופס ובקרת אישור או תיקון. איננו משתמשים בו לשיווק.</p>
+  </section>
+
+  <section aria-labelledby="s7">
+    <h2 id="s7">7. שמירה ומחיקה</h2>
+    <ul>
+      <li>קובצי שמע זמניים נמחקים מיד לאחר הטיפול בהם, בהגדרות ברירת המחדל.</li>
+      <li>נתוני בדיקה טכניים (מזהי הודעות וטפסי דמה) נשמרים בסביבת הפיתוח ונמחקים ידנית, גם לפי בקשה.</li>
+      <li>רישומי הפעילות (לוגים) אינם כוללים תוכן הודעות, ומספרי טלפון מוצגים בהם חלקית בלבד. המערכת אינה שומרת לוגים בקובץ; הם מוצגים בחלון הטרמינל בלבד. לוגים שיישמרו ידנית (למשל לצורך תחקור תקלה) יימחקו לאחר 30 יום לכל היותר, והמחיקה מבוצעת ידנית.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="s8">
+    <h2 id="s8">8. אבטחת מידע</h2>
+    <p>מיושמים אמצעים בסיסיים: אימות החתימה של הודעות נכנסות מ-Meta, הגבלת הטיפול לבודקים מורשים בלבד, וסינון סודות טכניים מרישומי הפעילות. אין בכך הבטחה לאבטחה מלאה, והמערכת נמצאת בפיתוח.</p>
+  </section>
+
+  <section aria-labelledby="s9">
+    <h2 id="s9">9. פניות ומחיקה</h2>
+    <p>כל פנייה, לרבות בקשה לעיין במידע, לתקנו או למחוק אותו, ניתן לשלוח אל <a href="mailto:studio.ironmentsh@gmail.com">studio.ironmentsh@gmail.com</a>. נא לציין שהפנייה נוגעת ל-Recording to Data DEV.</p>
+    <p>מחיקה מבוצעת במערכת שלנו בלבד. מידע המוחזק אצל ספקים חיצוניים (Meta, Cloudflare, שירות התמלול ו-Anthropic) כפוף למדיניות שלהם, ואיננו יכולים להבטיח את מחיקתו אצלם.</p>
+  </section>
+</main>
+<footer>
+  <p>דף זה משמש לצורכי סביבת ניסוי (DEV) בלבד ואינו מדיניות לשימוש מסחרי.</p>
+</footer>
+
+</body>
+</html>
