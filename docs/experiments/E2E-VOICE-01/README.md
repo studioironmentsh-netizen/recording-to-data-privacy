@@ -1,20 +1,27 @@
 # E2E-VOICE-01 — הודעה קולית → STT מקומי → Claude → טופס → שני כפתורים
 
-סטטוס: **מימוש מקומי הושלם; Claude אמיתי ו-WhatsApp אמיתי לא נבדקו.** ראו דוח המסירה לפרטים.
+סטטוס: **LOCAL_PIPELINE_COMPLETE** · בדיקות חיות מול Meta/Claude: **NOT_TESTED**. מרשם פערים: `docs/GAP_REGISTER.md`. בקשות שינוי: `docs/change-requests/`.
 
-## זרימה (`apps/api/src/pipeline/`)
-webhook (חתימה, allowlist, dedup, 200 מיידי) → `VoicePipeline.processVoice` → הורדת מדיה לקובץ זמני → `PythonSttWorker` (`python/stt_worker.py`)
-→ `StructuredExtractor` (פרומפט קפוא, ≤3 קריאות, פענוח דטרמיניסטי, `validate-extraction.ts`, salvage ברמת שדה) → בקרות K1–K8 + presenter (`python/controls_cli.py`)
-→ `formview.ts` (שלושה מצבי תצוגה, M-2) → `sendFormMessage` (שני כפתורים: אשר / תקן או הוסף).
-כפתור "תקן או הוסף" פותח הקשר תיקון (10 דק׳); ההקלטה הבאה יוצרת revision חדש (מיזוג רק של שדות מאומתים).
+## זרימה (`apps/api/src/`)
+webhook (חתימה, allowlist, dedup, 200 מיידי) → `pipeline.processVoice` (receipt לפני כל קריאת AI) → `whatsapp.fetchMedia` (שלב כפול של Graph) → קובץ זמני
+→ `stt.PythonSttWorker` (`python/stt_worker.py`, המודל נטען פעם אחת) → `extractor.StructuredExtractor` (פרומפט קפוא, ≤3 קריאות, NORM-2.0, validator, salvage, מפסק מעגל)
+→ בקרות K1–K8 + presenter (`python/controls_cli.py`) → `formview` (שלושה מצבי תצוגה, M-2, FULL/PARTIAL + flagged_fields)
+→ `store.saveDraftAndEnqueue` (עסקה אחת) → `outbox.OutboxRunner` (retry, חלון 24 ש׳, מסירה מאוחרת) → `GraphWhatsApp.sendFormButtons` (שני כפתורים חתומים).
+לחיצה: `handlers` ← אימות חתימת כפתור + בעלות + revision ← `store.approve` (אטומי, FormVersion בלתי משתנה) או פתיחת הקשר תיקון (10 דק׳) ← ההקלטה הבאה ⇒ revision חדש (מיזוג שדות מאומתים בלבד).
+`statuses` של Meta ⇒ `delivery_status` + `e2e_delivery_ms`.
 
-## הרצה
-- סביבת STT: `python -m venv apps/api/python/.venv-stt` ואז `pip install --only-binary=:all: -r apps/api/python/requirements-stt.txt`
-- אימות המודל: `python apps/api/python/verify_model.py <model_dir>`
-- בדיקות: `cd apps/api && npm.cmd run typecheck && npm.cmd test`
-- E2E מקומי (STT אמיתי, Meta/Claude מדומים): `node scripts/e2e-local-mock.ts <model_dir> <audio>...`
-- שרת: `PIPELINE_ENABLED=true`, `STT_MODEL_DIR=<abs>` ב-`.env` (ראו `.env.example`). עם `EXTRACTOR_MODE=mock` השרת מתמלל בלבד ואינו קורא ל-Claude.
+## בדיקות
+| פקודה (מתוך `apps/api`) | מה היא מריצה |
+|---|---|
+| `npm.cmd run typecheck` | tsc |
+| `npm.cmd test` | 123 בדיקות: יחידה/אינטגרציה (STT worker עם fake פרוטוקול, MockGraph ב-HTTP, מתאם Graph אמיתי, store/outbox אמיתיים, validator ובקרות אמיתיים) |
+| `npm.cmd run test:e2e` (עם `STT_MODEL_DIR`, `E2E_AUDIO_DIR`) | שרשרת מקומית מלאה עם **STT אמיתי** והקלטות דמה; Meta ו-Claude מדומים |
+| `npm.cmd run preflight` | בדיקת מוכנות לקריאה בלבד; אינה שולחת דבר ואינה מפעילה LIVE |
+| `node scripts/e2e-local-mock.ts <model> <audio>...` | מדידת תזמון מקומית |
 
-## פתיחת Claude אמיתי (רק אחרי אישור משה)
-כל ארבעת התנאים נדרשים, אחרת השרת מסרב לעלות: `EXTRACTOR_MODE=real`, `ANTHROPIC_LIVE_APPROVAL=<ביטוי האישור המדויק, ראו llm.ts>`,
-`ANTHROPIC_KEY_ROTATION_CONFIRMED=yes`, `ANTHROPIC_API_KEY=<מפתח חדש>`. פנקס `data/anthropic_ledger.json` חוסם מעל 60 קריאות / $10.
+## הפעלה לניסוי חי (אחרי הסרת חסימת Meta)
+1. `.env` (ללא ערכים בצ'אט): `PIPELINE_ENABLED=true`, `STT_MODEL_DIR=<abs>`, ו-`ANTHROPIC_BUDGET_USD=<יתרה מאומתת, עד 10>`.
+2. שלב א׳ (חינם): `EXTRACTOR_MODE=mock` — קול אמיתי ← תמלול בלבד. הרצת `npm.cmd run preflight`. הודעת קול אחת מהטלפון; בלוג: `pipeline_done` עם `stt_ms`.
+3. שלב ב׳ (Claude): לאחר ש(א) אושרה יתרה/מפתח בטוח בקונסולה, (ב) משה אישר, מוסיפים `EXTRACTOR_MODE=real`, `ANTHROPIC_API_KEY`, `ANTHROPIC_KEY_ROTATION_CONFIRMED=yes`, `ANTHROPIC_LIVE_APPROVAL=<הביטוי ב-llm.ts>`. `preflight` חייב להיות ללא FAIL/BLOCKED. הודעת קול אחת בחלון 24 ש׳ ← טופס ← "אשר" / "תקן או הוסף".
+4. הוכחה: לוגים `form_sent`, `delivery_status` (delivered), `button_click` + צילום מסך. רק אז סימון LIVE_* כ-PASS.
+5. מעבר למפתח של משה: שינוי `ANTHROPIC_API_KEY` ב-`.env` בלבד; הפנקס ב-`data/anthropic_ledger.json` נשמר ואין איפוס מונים.

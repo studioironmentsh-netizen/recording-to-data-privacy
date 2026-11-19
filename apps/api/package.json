@@ -10,7 +10,9 @@
     "start": "node --env-file=.env src/server.ts",
     "send-form": "node --env-file=.env scripts/send-form.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"src/**/*.test.ts\""
+    "test": "node --test \"src/**/*.test.ts\"",
+    "test:e2e": "node --test --test-timeout=600000 \"src/e2e/*.e2e.ts\"",
+    "preflight": "node --env-file=.env scripts/preflight.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
