@@ -56,15 +56,20 @@ export function createApp(deps: Deps, done?: (p: Promise<unknown>) => void) {
         return end(403);
       }
       if (req.method === "POST") {
+        log("info", "webhook_post_received", { method: "POST", path: url.pathname });
         const raw = await readBody(req);
         if (!verifySignature(raw, req.headers["x-hub-signature-256"] as string | undefined, cfg.appSecret)) {
           log("warn", "signature_invalid");
           return end(401);
         }
+        log("info", "webhook_signature_ok");
         let events;
         try { events = parseWebhook(JSON.parse(raw.toString("utf8"))); }
         catch { log("warn", "payload_unparseable"); return end(400); }
         end(200); // ack fast so Meta does not retry; process afterwards
+        const n = { audio: 0, button: 0, status: 0, other: 0 };
+        for (const ev of events) n[ev.kind]++;
+        log("info", "webhook_parsed", { events: events.length, ...n });
         const work = Promise.all(events.map((ev) => handleEvent(ev, deps, receivedAtMs)));
         done?.(work);
         return;
