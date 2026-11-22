@@ -1,5 +1,5 @@
 import type { Config } from "./config.ts";
-import type { InboundEvent } from "./events.ts";
+import type { InboundEvent, MetaStatusError } from "./events.ts";
 import { buttonSignatureValid, decodeButtonId, type Action } from "./forms.ts";
 import { errMsg, log, maskPhone, shortId, type Fields } from "./logger.ts";
 import type { Form, Store } from "./store.ts";
@@ -16,12 +16,23 @@ async function reply(d: Deps, to: string, text: string): Promise<void> {
   await d.wa.sendText(to, text);
 }
 
+/** Which events must come from an allowlisted technician. Fail-closed: anything not explicitly exempt needs the allowlist. */
+export function requiresAllowlist(kind: InboundEvent["kind"]): boolean {
+  switch (kind) {
+    case "status": return false; // receipt for OUR message: `from` is the recipient. Trust = Meta signature (server.ts) + the known-wamid lookup in handleStatus
+    case "audio": case "button": case "other": return true;
+    default: return true; // any future/unknown kind gets no automatic authorization
+  }
+}
+
 export async function handleEvent(ev: InboundEvent, d: Deps, receivedAtMs: number = Date.now()): Promise<void> {
   const base = { msg: shortId(ev.messageId), from: maskPhone(ev.from) };
-  if (!d.cfg.allowedTechnicians.has(ev.from)) {
-    log("warn", "unauthorized_sender", base);
+  if (requiresAllowlist(ev.kind) && !d.cfg.allowedTechnicians.has(ev.from)) {
+    // kind (+ message type for "other") tells what was rejected; no message id, no full number, no content
+    log("warn", "unauthorized_sender", { kind: ev.kind, from: maskPhone(ev.from), ...(ev.kind === "other" ? { type: /^[a-z_]{1,24}$/.test(ev.type) ? ev.type : "unknown" } : {}) });
     return;
   }
+  if (d.cfg.inboundMediaOnly === true && ev.kind === "audio") log("info", "sender_allowed", base);
   if (ev.kind === "status") return handleStatus(ev, d, base);
   if (!d.store.claimMessage(ev.messageId)) {
     log("info", "duplicate_ignored", base);
@@ -42,9 +53,23 @@ export async function handleEvent(ev: InboundEvent, d: Deps, receivedAtMs: numbe
 }
 
 /** Delivery receipts for OUR messages: the only trustworthy "delivered" signal (the Graph API response only means accepted). */
+/** Flat log fields for Meta delivery errors. When Meta sent none, say so explicitly instead of implying details exist. */
+export function describeStatusErrors(errors: MetaStatusError[] | undefined): Fields {
+  const first = errors?.[0];
+  if (!errors || !first) return { meta_errors: "not_provided" };
+  return {
+    meta_errors: errors.length, error_code: first.code ?? null, error_title: first.title ?? null, error_message: first.message ?? null,
+    error_details: first.details ?? null, error_href: first.href ?? null,
+    ...(errors.length > 1 ? { error_codes: errors.map((e) => e.code ?? "?").join(",") } : {}),
+  };
+}
+
 function handleStatus(ev: Extract<InboundEvent, { kind: "status" }>, d: Deps, base: Fields) {
   if (!d.store.claimMessage(`status:${ev.messageId}:${ev.status}`)) return; // each status is processed once
   const rec = d.store.markDelivery(ev.messageId, ev.status, Date.now());
+  if (ev.status === "failed") { // Meta could not deliver OUR message: keep the reason (the only place it is ever visible)
+    log("warn", "delivery_failed", { ...base, known_message: Boolean(rec), form_id: rec?.formId ?? null, revision: rec?.revision ?? null, meta_timestamp: ev.timestamp > 0 ? ev.timestamp : null, ...describeStatusErrors(ev.errors) });
+  }
   if (!rec) { log("info", "status_unknown_message", { ...base, status: ev.status }); return; } // out of order / not ours: ignored safely
   const now = Date.now();
   log("info", "delivery_status", {
