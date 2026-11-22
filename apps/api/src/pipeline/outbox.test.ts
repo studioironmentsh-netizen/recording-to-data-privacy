@@ -81,7 +81,7 @@ before(async () => {
   await graph.start();
   cfg = {
     port: 0, verifyToken: "v-token-outbox", accessToken: TOKEN, appSecret: SECRET, phoneNumberId: "1", allowedTechnicians: new Set([TECH]), graphVersion: "v23.0", dataDir: dir,
-    mediaMaxBytes: 1024 * 1024, mediaKeepSeconds: 0, graphBaseUrl: graph.baseUrl,
+    mediaMaxBytes: 1024 * 1024, mediaKeepSeconds: 0, outboundEnabled: true, graphBaseUrl: graph.baseUrl,
     pipeline: { pythonExe: PYTHON, sttWorkerScript: "", controlsScript: CONTROLS_SCRIPT, sttModelDir: "C:\\x", sttMaxAudioSeconds: 60, sttMaxQueue: 2, sttJobTimeoutMs: 5000, sttStartupTimeoutMs: 5000, extractorMode: "mock", ackEnabled: false, get patchTtlMs() { return patchTtlMs; } } as any,
   };
   store = new Store(dir);

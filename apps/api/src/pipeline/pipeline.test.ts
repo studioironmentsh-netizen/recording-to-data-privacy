@@ -46,7 +46,7 @@ before(async () => {
   dir = mkdtempSync(join(tmpdir(), "pipe-"));
   const cfg: Config = {
     port: 0, verifyToken: "v-token-pipeline", accessToken: TOKEN, appSecret: SECRET, phoneNumberId: "1", allowedTechnicians: new Set([TECH, OTHER]),
-    graphVersion: "v23.0", dataDir: dir, mediaMaxBytes: 1024 * 1024, mediaKeepSeconds: 0,
+    graphVersion: "v23.0", dataDir: dir, mediaMaxBytes: 1024 * 1024, mediaKeepSeconds: 0, outboundEnabled: true,
     pipeline: { pythonExe: PYTHON, sttWorkerScript: "", controlsScript: CONTROLS_SCRIPT, sttModelDir: "C:\\x", sttMaxAudioSeconds: 60, sttMaxQueue: 2, sttJobTimeoutMs: 5000, sttStartupTimeoutMs: 5000, extractorMode: "mock", ackEnabled: true, patchTtlMs: 600000 },
   };
   store = new Store(dir);
@@ -258,7 +258,7 @@ describe("WhatsApp message shape (Graph API payload)", () => {
       sent.push(JSON.parse(init.body));
       return new Response(JSON.stringify({ messages: [{ id: `wamid.G${sent.length}` }] }), { status: 200 });
     }) as typeof fetch;
-    const cfg: Config = { port: 0, verifyToken: "v", accessToken: TOKEN, appSecret: SECRET, phoneNumberId: "1", allowedTechnicians: new Set(), graphVersion: "v23.0", dataDir: dir, mediaMaxBytes: 1, mediaKeepSeconds: 0 };
+    const cfg: Config = { port: 0, verifyToken: "v", accessToken: TOKEN, appSecret: SECRET, phoneNumberId: "1", allowedTechnicians: new Set(), graphVersion: "v23.0", dataDir: dir, mediaMaxBytes: 1, mediaKeepSeconds: 0, outboundEnabled: true };
     return { sent, g: new GraphWhatsApp(cfg, fetchFn) };
   }
   it("interactive form has exactly two buttons 'אשר' and 'תקן או הוסף' carrying form id and revision", async () => {

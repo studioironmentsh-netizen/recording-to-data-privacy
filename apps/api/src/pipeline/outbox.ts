@@ -43,8 +43,12 @@ export class OutboxRunner {
     return undefined;
   }
 
+  /** OUTBOUND_ENABLED gate: when false the outbox is inert (nothing is delivered, retried, timed or dropped; entries stay as saved). */
+  private get enabled(): boolean { return this.d.cfg.outboundEnabled === true; }
+
   start(intervalMs = 15_000): void {
     this.stop();
+    if (!this.enabled) return; // no retry timer exists in safe mode
     this.timer = setInterval(() => void this.drain(), intervalMs);
     this.timer.unref();
   }
@@ -55,6 +59,7 @@ export class OutboxRunner {
 
   /** Delivers everything that is due. Single-flight: concurrent calls are coalesced into one more pass. */
   async drain(): Promise<void> {
+    if (!this.enabled) return; // checked before touching the store: queued entries are preserved untouched
     if (this.busy) { this.again = true; return; }
     this.busy = true;
     try {
@@ -68,6 +73,7 @@ export class OutboxRunner {
   }
 
   private async deliver(e: OutboxEntry): Promise<void> {
+    if (!this.enabled) return; // defense in depth: no state change, no send
     const { store, wa } = this.d;
     const now = this.now();
     const to = this.waIdOf(e.techKey);

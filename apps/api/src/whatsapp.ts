@@ -17,6 +17,12 @@ export class GraphError extends Error {
   /** Retrying can help: network failures, 429 and 5xx. Other 4xx are permanent. */
   get retryable(): boolean { return this.status === undefined || this.status === 429 || this.status >= 500; }
 }
+/** Thrown by the Graph adapter when OUTBOUND_ENABLED is not "true": the lowest boundary every send passes through. */
+export class OutboundDisabledError extends Error {
+  constructor() {
+    super("outbound messaging is disabled (OUTBOUND_ENABLED is not true)");
+  }
+}
 export const BODY_MAX = 1024; // WhatsApp reply-button body limit
 
 export interface WhatsApp {
@@ -50,6 +56,7 @@ export class GraphWhatsApp implements WhatsApp {
   }
 
   private async post(payload: object): Promise<any> {
+    if (!this.cfg.outboundEnabled) throw new OutboundDisabledError(); // single choke point of every outbound message; checked before any network call
     const res = await this.fetchFn(`${this.base()}/${this.cfg.phoneNumberId}/messages`, {
       method: "POST",
       headers: { ...this.auth(), "Content-Type": "application/json" },

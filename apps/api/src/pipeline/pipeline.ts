@@ -63,10 +63,17 @@ export class VoicePipeline {
     const isPatch = Boolean(patchForm && patchForm.fields && patchForm.revision === target!.revision && patchForm.status === "editing");
     store.beginReceipt(ev.messageId, key, isPatch ? "PATCH" : "NEW", receivedAtMs);
 
-    if (cfg.pipeline?.ackEnabled) void wa.sendText(ev.from, MSG.ACK).catch((e) => log("warn", "ack_failed", { ...base, error: errMsg(e) }));
+    // OUTBOUND_ENABLED gate (safe test mode): with outbound off, nothing below may reach the sender; the pipeline still runs and saves.
+    const outbound = cfg.outboundEnabled === true;
+    if (!outbound) log("info", "outbound_suppressed", { ...base, what: "notices_and_form_delivery" });
+    if (outbound && cfg.pipeline?.ackEnabled) void wa.sendText(ev.from, MSG.ACK).catch((e) => log("warn", "ack_failed", { ...base, error: errMsg(e) }));
+    const notify = async (text: string) => { // every user-facing text of this job goes through here
+      if (!outbound) return;
+      try { await wa.sendText(ev.from, text); } catch (e) { log("warn", "failure_notice_not_sent", { ...base, error: errMsg(e) }); }
+    };
     const fail = async (text: string, code: string) => {
       store.finishReceipt(ev.messageId, "FAILED", { failure: code });
-      try { await wa.sendText(ev.from, text); } catch (e) { log("warn", "failure_notice_not_sent", { ...base, error: errMsg(e) }); }
+      await notify(text);
     };
 
     let temp: { path: string; cleanup: () => void } | null = null;
@@ -102,7 +109,7 @@ export class VoicePipeline {
 
       if (!extractor) {
         store.finishReceipt(ev.messageId, "FAILED", { failure: "EXTRACTION_DISABLED" });
-        await wa.sendText(ev.from, MSG.EXTRACTION_OFF);
+        await notify(MSG.EXTRACTION_OFF);
         span("total_ms", start);
         log("info", "pipeline_done", { ...base, mode: "transcribe_only", transcript_chars: transcript.length, ...t });
         return;
@@ -171,7 +178,7 @@ export class VoicePipeline {
       at("t_outbound_submitted_ms");
       span("total_ms", start);
       const entry = store.getOutbox(`form:${form.formId}:${form.revision}`);
-      log("info", entry?.status === "SENT" ? "form_sent" : "form_saved_delivery_pending", {
+      log("info", entry?.status === "SENT" ? "form_sent" : outbound ? "form_saved_delivery_pending" : "form_saved_outbound_disabled", {
         ...base, form_id: form.formId, revision: form.revision, mode: form.mode, flagged_fields: flagged.length, outbox: entry?.status ?? "MISSING",
         qty_normalized: out.quantityNormalized, qty_rejected: out.quantityRejected, ...t,
       });

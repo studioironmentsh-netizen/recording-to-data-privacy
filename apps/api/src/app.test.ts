@@ -45,7 +45,7 @@ before(async () => {
   const cfg: Config = {
     port: 0, verifyToken: VERIFY, accessToken: TOKEN, appSecret: SECRET, phoneNumberId: "1",
     allowedTechnicians: new Set([TECH]), graphVersion: "v23.0", dataDir: dir,
-    mediaMaxBytes: 1024 * 1024, mediaKeepSeconds: 0,
+    mediaMaxBytes: 1024 * 1024, mediaKeepSeconds: 0, outboundEnabled: true,
   };
   store = new Store(dir);
   wa = new FakeWA();

@@ -85,7 +85,7 @@ describe("full local chain with the real STT worker", { skip: READY ? false : "s
     await graph.start();
     const cfg: Config = {
       port: 0, verifyToken: "v-e2e-token", accessToken: TOKEN, appSecret: SECRET, phoneNumberId: "1", allowedTechnicians: new Set([TECH]), graphVersion: "v23.0", dataDir: dir,
-      mediaMaxBytes: 16 * 1024 * 1024, mediaKeepSeconds: 0, graphBaseUrl: graph.baseUrl,
+      mediaMaxBytes: 16 * 1024 * 1024, mediaKeepSeconds: 0, outboundEnabled: true, graphBaseUrl: graph.baseUrl,
       pipeline: { pythonExe: PYTHON, sttWorkerScript: join(API_ROOT, "python/stt_worker.py"), controlsScript: CONTROLS_SCRIPT, sttModelDir: MODEL_DIR, sttMaxAudioSeconds: 180, sttMaxQueue: 4, sttJobTimeoutMs: 150000, sttStartupTimeoutMs: 180000, extractorMode: "mock", ackEnabled: false, patchTtlMs: 600000 },
     };
     store = new Store(dir);

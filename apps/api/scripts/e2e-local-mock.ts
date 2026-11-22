@@ -28,7 +28,7 @@ setSink((l) => lines.push(JSON.parse(l)));
 const apiRoot = j(import.meta.dirname, "..");
 const cfg: Config = {
   port: 0, verifyToken: "x", accessToken: "x", appSecret: "x", phoneNumberId: "1", allowedTechnicians: new Set(["15550001111"]), graphVersion: "v23.0",
-  dataDir: dir, mediaMaxBytes: 16 * 1024 * 1024, mediaKeepSeconds: 0,
+  dataDir: dir, mediaMaxBytes: 16 * 1024 * 1024, mediaKeepSeconds: 0, outboundEnabled: true,
   pipeline: { pythonExe: PYTHON, sttWorkerScript: j(apiRoot, "python/stt_worker.py"), controlsScript: CONTROLS_SCRIPT, sttModelDir: modelDir, sttMaxAudioSeconds: 180, sttMaxQueue: 4, sttJobTimeoutMs: 150000, sttStartupTimeoutMs: 180000, extractorMode: "mock", ackEnabled: false, patchTtlMs: 600000 },
 };
 const stt = new PythonSttWorker({ pythonExe: PYTHON, workerScript: cfg.pipeline!.sttWorkerScript, modelDir, maxQueue: 4, jobTimeoutMs: 150000, startupTimeoutMs: 180000, maxAudioSeconds: 180, onEvent: (e, f) => lines.push({ event: e, ...f }) });

@@ -25,3 +25,9 @@ webhook (חתימה, allowlist, dedup, 200 מיידי) → `pipeline.processVoic
 3. שלב ב׳ (Claude): לאחר ש(א) אושרה יתרה/מפתח בטוח בקונסולה, (ב) משה אישר, מוסיפים `EXTRACTOR_MODE=real`, `ANTHROPIC_API_KEY`, `ANTHROPIC_KEY_ROTATION_CONFIRMED=yes`, `ANTHROPIC_LIVE_APPROVAL=<הביטוי ב-llm.ts>`. `preflight` חייב להיות ללא FAIL/BLOCKED. הודעת קול אחת בחלון 24 ש׳ ← טופס ← "אשר" / "תקן או הוסף".
 4. הוכחה: לוגים `form_sent`, `delivery_status` (delivered), `button_click` + צילום מסך. רק אז סימון LIVE_* כ-PASS.
 5. מעבר למפתח של משה: שינוי `ANTHROPIC_API_KEY` ב-`.env` בלבד; הפנקס ב-`data/anthropic_ledger.json` נשמר ואין איפוס מונים.
+
+## מצב בדיקה בטוח (SPK-META-02)
+- `OUTBOUND_ENABLED` (ברירת מחדל: כבוי; רק הערך המדויק `true` מפעיל). כבוי = אין שום הודעת WhatsApp יוצאת: לא ACK, לא הודעות כשל, לא טופס, לא ניסיונות חוזרים, לא תשובות ללחיצות. העיבוד והשמירה ממשיכים כרגיל. החסימה היא ב-`GraphWhatsApp.post` (נקודת השליחה היחידה) ובנוסף ב-`pipeline.ts`, `outbox.ts` ו-`handlers.ts`. טפסים שנשמרו במצב כבוי נשארים בתור (PENDING) ויישלחו בהפעלה הבאה עם `true` אם החלון של 24 ש׳ פתוח.
+- בדיקה מקומית (קריאה בלבד): `LOCAL_INSPECT_ENABLED=true` (+ `LOCAL_INSPECT_PORT`, ברירת מחדל 3001) מפעיל מאזין נפרד על 127.0.0.1: `GET /local/forms`, `GET /local/forms/<formId>`. אינו על פורט ה-webhook ולכן אינו עובר במנהרה; דוחה Host לא מקומי וכותרות פרוקסי.
+- זמן עיבוד: ב-`receipts[id]` נשמרים `receivedAt`, `processingCompletedAt`, `processingDurationMs` (נקבעים פעם אחת בשמירת הטיוטה המוצלחת).
+- תמלול: **אינו נשמר** (D16, דף הפרטיות ובדיקה קיימת). אין בנתונים תמלול לבדיקה; הראיה לשלב היא המדדים בלוג.

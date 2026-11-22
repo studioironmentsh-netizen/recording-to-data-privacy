@@ -13,7 +13,9 @@ export interface PatchTarget { formId: string; revision: number; expiresAt: numb
 
 export type ReceiptStatus = "PROCESSING" | "REVIEW_READY" | "NEEDS_INFO" | "FAILED";
 /** One per inbound voice message: created BEFORE any AI call, so retries/duplicates share it (SALV-R13). */
-export interface Receipt { id: string; techKey: string; kind: "NEW" | "PATCH"; status: ReceiptStatus; formId?: string; revision?: number; receivedAt: number; updatedAt: number; failure?: string }
+export interface Receipt { id: string; techKey: string; kind: "NEW" | "PATCH"; status: ReceiptStatus; formId?: string; revision?: number; receivedAt: number; updatedAt: number; failure?: string;
+  /** Set ONCE, at the successful save of the draft (never on failure, never by later approvals/edits). Epoch ms, same clock as receivedAt. */
+  processingCompletedAt?: number; processingDurationMs?: number }
 
 /** Immutable approved snapshot (append-only; unique (formId, versionSeq)). */
 export interface FormVersion { formId: string; versionSeq: number; revision: number; fields: StoredFields; flagged: string[]; mode: "FULL" | "PARTIAL"; approvedAt: number; opKey: string }
@@ -108,6 +110,9 @@ export class Store {
     });
   }
   getReceipt(id: string): Receipt | undefined { return this.load().receipts?.[id]; }
+  /** Read-only views for the local inspector. */
+  listForms(): Form[] { return Object.values(this.load().forms); }
+  receiptsForForm(formId: string): Receipt[] { return Object.values(this.load().receipts ?? {}).filter((r) => r.formId === formId).sort((a, b) => a.receivedAt - b.receivedAt); }
   finishReceipt(id: string, status: ReceiptStatus, extra: Partial<Receipt> = {}): void {
     this.tx((s) => { const r = s.receipts?.[id]; if (r) Object.assign(r, extra, { status, updatedAt: Date.now() }); });
   }
@@ -122,7 +127,7 @@ export class Store {
 
   // ---- drafts + outbox (one atomic commit)
   /** SALV-R15: the draft and its outbox message are saved in the same transaction; older undelivered revisions are superseded. */
-  saveDraftAndEnqueue(form: Form, entry: OutboxEntry, receiptId?: string): void {
+  saveDraftAndEnqueue(form: Form, entry: OutboxEntry, receiptId?: string, completedAt: number = Date.now()): void {
     this.tx((s) => {
       s.forms[form.formId] = form;
       s.outbox ??= {};
@@ -131,7 +136,9 @@ export class Store {
       }
       s.outbox[entry.key] ??= entry; // fixed key: a repeated enqueue never creates a second message
       const r = receiptId ? s.receipts?.[receiptId] : undefined;
-      if (r) { r.status = form.mode === "PARTIAL" ? "NEEDS_INFO" : "REVIEW_READY"; r.formId = form.formId; r.revision = form.revision; r.updatedAt = Date.now(); }
+      if (r) { r.status = form.mode === "PARTIAL" ? "NEEDS_INFO" : "REVIEW_READY"; r.formId = form.formId; r.revision = form.revision; r.updatedAt = completedAt;
+        if (r.processingCompletedAt === undefined) { r.processingCompletedAt = completedAt; r.processingDurationMs = Math.max(0, completedAt - r.receivedAt); } // first successful persistence only
+      }
     });
   }
   /** Approval: atomic, idempotent. Creates ONE immutable FormVersion; a second approval creates nothing. */

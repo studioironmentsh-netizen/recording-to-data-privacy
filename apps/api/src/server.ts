@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { loadConfig, type Config } from "./config.ts";
 import { parseWebhook } from "./events.ts";
 import { handleEvent, type Deps } from "./handlers.ts";
+import { createInspector } from "./inspect.ts";
 import { errMsg, log, registerSecrets } from "./logger.ts";
 import { verifySignature } from "./signature.ts";
 import { Store } from "./store.ts";
@@ -98,6 +99,7 @@ export function buildDeps(cfg: Config, env: NodeJS.ProcessEnv = process.env): De
     if (!gate.live) throw new Error(`LIVE_GATE_CLOSED: missing ${gate.missing.join("; ")}`); // refuse to start; never fall back silently
     extractor = new StructuredExtractor(AnthropicLlm.create(env, cfg.dataDir), new PythonControls(p.pythonExe, p.controlsScript));
   } // else: transcribe-only dry run, no Claude calls
+  log("info", "outbound_mode", { outbound_enabled: cfg.outboundEnabled }); // false => no WhatsApp message of any kind leaves this process
   const swept = sweepTempAudio(cfg.dataDir); // orphaned audio from a crashed run never survives a restart
   log("info", "pipeline_configured", { extractor: p.extractorMode, live_calls_enabled: extractor !== null, swept_temp_files: swept });
   void stt.warmUp().catch(() => log("error", "stt_warmup_failed"));
@@ -112,5 +114,7 @@ export function buildDeps(cfg: Config, env: NodeJS.ProcessEnv = process.env): De
 
 if (import.meta.main) {
   const cfg = loadConfig();
-  createApp(buildDeps(cfg)).listen(cfg.port, "127.0.0.1", () => log("info", "server_listening", { port: cfg.port }));
+  const deps = buildDeps(cfg);
+  createApp(deps).listen(cfg.port, "127.0.0.1", () => log("info", "server_listening", { port: cfg.port }));
+  if (cfg.localInspect) createInspector(deps.store).listen(cfg.localInspect.port, "127.0.0.1", () => log("info", "local_inspector_listening", { port: cfg.localInspect!.port }));
 }

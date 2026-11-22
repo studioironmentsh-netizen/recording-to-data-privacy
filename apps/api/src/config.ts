@@ -16,6 +16,10 @@ export interface Config {
   pipeline?: PipelineConfig; // absent => legacy behaviour (download, hash, delete)
   graphBaseUrl?: string; // test/mock Graph endpoint only; ignored when NODE_ENV=production
   port: number;
+  /** Outbound WhatsApp messaging (ACK, failure notices, forms, outbox, button replies). Safe default: false; only the exact value "true" enables it. */
+  outboundEnabled: boolean;
+  /** Read-only local form inspector on its OWN loopback port (never the webhook listener). Absent unless explicitly enabled. */
+  localInspect?: { port: number };
   verifyToken: string;
   accessToken: string;
   appSecret: string;
@@ -51,14 +55,30 @@ export function loadPipelineConfig(env: NodeJS.ProcessEnv, apiRoot: string): Pip
   };
 }
 
+/** Fail-closed: absent, empty or any non-"true" value ("True", "1", "yes", " true") keeps outbound OFF. */
+export function parseOutboundEnabled(env: NodeJS.ProcessEnv): boolean {
+  return env.OUTBOUND_ENABLED === "true";
+}
+
+export function loadLocalInspect(env: NodeJS.ProcessEnv, webhookPort: number): { port: number } | undefined {
+  if (env.LOCAL_INSPECT_ENABLED !== "true") return undefined;
+  const port = Number(env.LOCAL_INSPECT_PORT ?? 3001);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid LOCAL_INSPECT_PORT");
+  if (port === webhookPort) throw new Error("LOCAL_INSPECT_PORT must differ from PORT (the webhook port is tunnelled)");
+  return { port };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, apiRoot: string = process.cwd()): Config {
   const req = (k: string): string => {
     const v = env[k];
     if (!v || v.startsWith("replace_with")) throw new Error(`Missing config: ${k}`);
     return v;
   };
+  const port = Number(env.PORT ?? 3000);
   return {
-    port: Number(env.PORT ?? 3000),
+    port,
+    outboundEnabled: parseOutboundEnabled(env),
+    localInspect: loadLocalInspect(env, port),
     verifyToken: req("WHATSAPP_VERIFY_TOKEN"),
     accessToken: req("WHATSAPP_ACCESS_TOKEN"),
     appSecret: req("WHATSAPP_APP_SECRET"),
