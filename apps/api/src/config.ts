@@ -18,6 +18,8 @@ export interface Config {
   port: number;
   /** Outbound WhatsApp messaging (ACK, failure notices, forms, outbox, button replies). Safe default: false; only the exact value "true" enables it. */
   outboundEnabled: boolean;
+  /** Diagnostic mode (default false): an allowlisted voice message is downloaded from Meta and the job STOPS before STT/Claude/forms. Implies outbound OFF. */
+  inboundMediaOnly?: boolean;
   /** Read-only local form inspector on its OWN loopback port (never the webhook listener). Absent unless explicitly enabled. */
   localInspect?: { port: number };
   verifyToken: string;
@@ -60,6 +62,11 @@ export function parseOutboundEnabled(env: NodeJS.ProcessEnv): boolean {
   return env.OUTBOUND_ENABLED === "true";
 }
 
+/** Fail-closed like OUTBOUND_ENABLED: only the exact value "true" turns the media-only diagnostic mode on. */
+export function parseInboundMediaOnly(env: NodeJS.ProcessEnv): boolean {
+  return env.INBOUND_MEDIA_ONLY === "true";
+}
+
 export function loadLocalInspect(env: NodeJS.ProcessEnv, webhookPort: number): { port: number } | undefined {
   if (env.LOCAL_INSPECT_ENABLED !== "true") return undefined;
   const port = Number(env.LOCAL_INSPECT_PORT ?? 3001);
@@ -75,9 +82,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, apiRoot: string
     return v;
   };
   const port = Number(env.PORT ?? 3000);
+  const mediaOnly = parseInboundMediaOnly(env);
   return {
     port,
-    outboundEnabled: parseOutboundEnabled(env),
+    outboundEnabled: parseOutboundEnabled(env) && !mediaOnly, // media-only never sends anything, whatever OUTBOUND_ENABLED says
+    inboundMediaOnly: mediaOnly,
     localInspect: loadLocalInspect(env, port),
     verifyToken: req("WHATSAPP_VERIFY_TOKEN"),
     accessToken: req("WHATSAPP_ACCESS_TOKEN"),

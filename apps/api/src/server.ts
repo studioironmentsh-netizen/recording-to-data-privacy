@@ -93,16 +93,17 @@ export function buildDeps(cfg: Config, env: NodeJS.ProcessEnv = process.env): De
     pythonExe: p.pythonExe, workerScript: p.sttWorkerScript, modelDir: p.sttModelDir, maxQueue: p.sttMaxQueue, jobTimeoutMs: p.sttJobTimeoutMs,
     startupTimeoutMs: p.sttStartupTimeoutMs, maxAudioSeconds: p.sttMaxAudioSeconds, onEvent: (e, f) => log("info", e, f),
   });
+  const mediaOnly = cfg.inboundMediaOnly === true;
   let extractor: StructuredExtractor | null = null;
-  if (p.extractorMode === "real") {
+  if (p.extractorMode === "real" && !mediaOnly) { // media-only: no Claude client is even constructed
     const gate = evaluateLiveGate(env);
     if (!gate.live) throw new Error(`LIVE_GATE_CLOSED: missing ${gate.missing.join("; ")}`); // refuse to start; never fall back silently
     extractor = new StructuredExtractor(AnthropicLlm.create(env, cfg.dataDir), new PythonControls(p.pythonExe, p.controlsScript));
   } // else: transcribe-only dry run, no Claude calls
-  log("info", "outbound_mode", { outbound_enabled: cfg.outboundEnabled }); // false => no WhatsApp message of any kind leaves this process
+  log("info", "outbound_mode", { outbound_enabled: cfg.outboundEnabled, inbound_media_only: mediaOnly }); // false => no WhatsApp message of any kind leaves this process
   const swept = sweepTempAudio(cfg.dataDir); // orphaned audio from a crashed run never survives a restart
   log("info", "pipeline_configured", { extractor: p.extractorMode, live_calls_enabled: extractor !== null, swept_temp_files: swept });
-  void stt.warmUp().catch(() => log("error", "stt_warmup_failed"));
+  if (!mediaOnly) void stt.warmUp().catch(() => log("error", "stt_warmup_failed")); // media-only: the STT worker is never started
   const outbox = new OutboxRunner({ cfg, store, wa });
   const pipeline = new VoicePipeline({ cfg, store, wa, stt, extractor, outbox });
   const rec = pipeline.recoverAfterRestart(); // dead receipts -> durable "please resend" notice; stuck sends -> retried

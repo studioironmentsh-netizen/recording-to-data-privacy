@@ -20,6 +20,16 @@ export const MSG = {
   EXTRACTION_OFF: "קיבלתי את ההקלטה. חילוץ הטופס כבוי כרגע בסביבת הפיתוח (ממתין לאישור).",
 } as const;
 
+/** Container guess from magic bytes only (diagnostics; never logs content). */
+export function sniffAudioContainer(b: Buffer): string {
+  if (b.length >= 4 && b.toString("latin1", 0, 4) === "OggS") return "ogg";
+  if (b.length >= 12 && b.toString("latin1", 4, 8) === "ftyp") return "mp4/m4a";
+  if (b.length >= 12 && b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WAVE") return "wav";
+  if (b.length >= 4 && b.readUInt32BE(0) === 0x1a45dfa3) return "webm/matroska";
+  if (b.length >= 3 && (b.toString("latin1", 0, 3) === "ID3" || (b[0] === 0xff && (b[1]! & 0xe0) === 0xe0))) return "mp3";
+  return "unknown";
+}
+
 export interface PipelineDeps {
   cfg: Config;
   store: Store;
@@ -64,7 +74,8 @@ export class VoicePipeline {
     store.beginReceipt(ev.messageId, key, isPatch ? "PATCH" : "NEW", receivedAtMs);
 
     // OUTBOUND_ENABLED gate (safe test mode): with outbound off, nothing below may reach the sender; the pipeline still runs and saves.
-    const outbound = cfg.outboundEnabled === true;
+    const mediaOnly = cfg.inboundMediaOnly === true; // diagnostic stop right after the media download
+    const outbound = cfg.outboundEnabled === true && !mediaOnly;
     if (!outbound) log("info", "outbound_suppressed", { ...base, what: "notices_and_form_delivery" });
     if (outbound && cfg.pipeline?.ackEnabled) void wa.sendText(ev.from, MSG.ACK).catch((e) => log("warn", "ack_failed", { ...base, error: errMsg(e) }));
     const notify = async (text: string) => { // every user-facing text of this job goes through here
@@ -81,6 +92,13 @@ export class VoicePipeline {
       // 1) media download (Meta -> private temp file, always deleted in finally)
       let p0 = performance.now();
       const media = await wa.fetchMedia(ev.mediaId);
+      if (mediaOnly) { // INBOUND_MEDIA_ONLY: proof that Meta delivered the audio and it was downloaded. No temp file is ever written, no STT, no Claude, no form.
+        span("media_download_ms", p0);
+        log("info", "media_download_succeeded", { ...base, media_download_ms: t.media_download_ms, mime: media.mime || ev.mime, container: sniffAudioContainer(media.bytes), size: media.bytes.length, voice: ev.voice });
+        store.finishReceipt(ev.messageId, "MEDIA_ONLY"); // terminal: never left PROCESSING (a restart would otherwise turn it into FAILED + a queued notice)
+        log("info", "media_only_stopped_before_stt", base);
+        return;
+      }
       temp = writeTempAudio(cfg.dataDir, media.bytes, jobId);
       span("media_download_ms", p0);
       at("t_media_download_completed_ms");

@@ -11,7 +11,7 @@ export interface Form {
 }
 export interface PatchTarget { formId: string; revision: number; expiresAt: number }
 
-export type ReceiptStatus = "PROCESSING" | "REVIEW_READY" | "NEEDS_INFO" | "FAILED";
+export type ReceiptStatus = "PROCESSING" | "REVIEW_READY" | "NEEDS_INFO" | "FAILED" | "MEDIA_ONLY"; // MEDIA_ONLY: diagnostic stop after the media download (terminal, not a failure)
 /** One per inbound voice message: created BEFORE any AI call, so retries/duplicates share it (SALV-R13). */
 export interface Receipt { id: string; techKey: string; kind: "NEW" | "PATCH"; status: ReceiptStatus; formId?: string; revision?: number; receivedAt: number; updatedAt: number; failure?: string;
   /** Set ONCE, at the successful save of the draft (never on failure, never by later approvals/edits). Epoch ms, same clock as receivedAt. */

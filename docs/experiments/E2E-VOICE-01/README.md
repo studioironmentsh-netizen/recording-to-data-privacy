@@ -31,3 +31,4 @@ webhook (חתימה, allowlist, dedup, 200 מיידי) → `pipeline.processVoic
 - בדיקה מקומית (קריאה בלבד): `LOCAL_INSPECT_ENABLED=true` (+ `LOCAL_INSPECT_PORT`, ברירת מחדל 3001) מפעיל מאזין נפרד על 127.0.0.1: `GET /local/forms`, `GET /local/forms/<formId>`. אינו על פורט ה-webhook ולכן אינו עובר במנהרה; דוחה Host לא מקומי וכותרות פרוקסי.
 - זמן עיבוד: ב-`receipts[id]` נשמרים `receivedAt`, `processingCompletedAt`, `processingDurationMs` (נקבעים פעם אחת בשמירת הטיוטה המוצלחת).
 - תמלול: **אינו נשמר** (D16, דף הפרטיות ובדיקה קיימת). אין בנתונים תמלול לבדיקה; הראיה לשלב היא המדדים בלוג.
+- `INBOUND_MEDIA_ONLY=true` (אבחון הגעת הודעות; ברירת מחדל כבוי): הודעת קול ממורשה מורדת מ-Meta והעבודה נעצרת לפני STT/Claude/טופס. אינו כותב קובץ זמני, סוגר את ה-receipt בסטטוס `MEDIA_ONLY` (סופי, לא כשל), מכפה `OUTBOUND_ENABLED=false`, אינו בונה לקוח Claude ואינו מפעיל את worker ה-STT. הודעה שנתפסה כך לא תעובד שוב (dedup); לעיבוד מלא יש לשלוח הודעה חדשה.
